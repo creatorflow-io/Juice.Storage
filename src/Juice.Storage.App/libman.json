@@ -1,0 +1,14 @@
+﻿{
+  "version": "1.0",
+  "defaultProvider": "unpkg",
+  "libraries": [
+    {
+      "library": "@juice-js/upload@1.0.10",
+      "destination": "wwwroot/lib/juice-js/upload/"
+    },
+    {
+      "library": "jquery@3.6.3",
+      "destination": "wwwroot/lib/jquery/"
+    }
+  ]
+}
