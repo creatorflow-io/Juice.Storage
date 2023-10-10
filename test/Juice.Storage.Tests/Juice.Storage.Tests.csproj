@@ -13,7 +13,7 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="appsettings.Development.json">
+        <Content Include="appsettings.Development.json" Condition="$(CI) != 'true'">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <ExcludeFromSingleFile>true</ExcludeFromSingleFile>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
