@@ -51,6 +51,10 @@
             _storage[filePath] = ostream.ToArray();
         }
 
+        public override Task PreserveModifiedTimeAsync(string filePath, DateTimeOffset? modifiedTime, CancellationToken token) {
+            throw new NotSupportedException();
+        }
+
         protected override async Task<IList<string>> FindFileVersionsAsync(string filePath, CancellationToken token)
         {
             var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);

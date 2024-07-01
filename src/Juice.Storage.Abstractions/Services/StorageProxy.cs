@@ -193,5 +193,26 @@ namespace Juice.Storage.Abstractions.Services
             throw new Exception($"Could not delete file {filePath} on any endpoint");
         }
 
+        public async Task PreserveModifiedTimeAsync(string filePath, DateTimeOffset? modifiedTime, CancellationToken token)
+        {
+            foreach (var provider in _providers)
+            {
+                try
+                {
+                    await provider.PreserveModifiedTimeAsync(filePath, modifiedTime, token);
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Could not preserve modified time for {filePath} on {provider.GetType().Name}. {ex.Message}");
+                    if (_logger.IsEnabled(LogLevel.Trace))
+                    {
+                        _logger.LogTrace(ex.StackTrace);
+                    }
+                }
+            }
+            throw new Exception($"Could not preserve modified time for {filePath} on any endpoint");
+        }
+
     }
 }

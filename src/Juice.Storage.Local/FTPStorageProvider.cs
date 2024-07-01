@@ -95,12 +95,12 @@ namespace Juice.Storage.Local
             await EnsureConnectedAsync(token);
 
             var directory = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(directory) && !await _client.DirectoryExistsAsync(directory))
+            if (!string.IsNullOrEmpty(directory) && !await _client!.DirectoryExistsAsync(directory))
             {
                 await _client.CreateDirectoryAsync(directory);
             }
 
-            if (!await _client.FileExistsAsync(filePath, token))
+            if (!await _client!.FileExistsAsync(filePath, token))
             {
                 await (await _client.OpenWriteAsync(filePath)).DisposeAsync();
                 await _client.GetReplyAsync(token);
@@ -130,7 +130,7 @@ namespace Juice.Storage.Local
         public override async Task DeleteAsync(string filePath, CancellationToken token)
         {
             await EnsureConnectedAsync(token).ConfigureAwait(false);
-            if (await _client.FileExistsAsync(filePath, token))
+            if (await _client!.FileExistsAsync(filePath, token))
             {
                 await _client.DeleteFileAsync(filePath, token);
             }
@@ -139,19 +139,19 @@ namespace Juice.Storage.Local
         public override async Task<bool> ExistsAsync(string filePath, CancellationToken token)
         {
             await EnsureConnectedAsync(token);
-            return await _client.FileExistsAsync(filePath, token);
+            return await _client!.FileExistsAsync(filePath, token);
         }
 
         public override async Task<long> FileSizeAsync(string filePath, CancellationToken token)
         {
             await EnsureConnectedAsync(token);
-            return await _client.GetFileSizeAsync(filePath, -1, token);
+            return await _client!.GetFileSizeAsync(filePath, -1, token);
         }
 
         public override async Task<Stream> ReadAsync(string filePath, CancellationToken token)
         {
             await EnsureConnectedAsync(token);
-            return await _client.OpenReadAsync(filePath);
+            return await _client!.OpenReadAsync(filePath);
         }
 
         public override async Task WriteAsync(string filePath, Stream stream, long offset, TransferOptions options, CancellationToken token)
@@ -166,7 +166,7 @@ namespace Juice.Storage.Local
                     throw new Exception("File cannot be resume from position");
                 }
 
-                using var ostream = await _client.OpenAppendAsync(filePath);
+                using var ostream = await _client!.OpenAppendAsync(filePath);
                 try
                 {
                     if (options.BufferSize.HasValue)
@@ -193,7 +193,7 @@ namespace Juice.Storage.Local
             }
             else
             {
-                using var ostream = await _client.OpenWriteAsync(filePath);
+                using var ostream = await _client!.OpenWriteAsync(filePath);
 
                 try
                 {
@@ -228,6 +228,15 @@ namespace Juice.Storage.Local
 
         }
 
+        public override async Task PreserveModifiedTimeAsync(string filePath, DateTimeOffset? modifiedTime, CancellationToken token)
+        {
+            if (modifiedTime.HasValue)
+            {
+                await EnsureConnectedAsync(token);
+                await _client!.SetModifiedTimeAsync(filePath, modifiedTime.Value.UtcDateTime, token);
+            }
+        }
+
         protected override async Task<IList<string>> FindFileVersionsAsync(string filePath, CancellationToken token)
         {
             await Task.Yield();
@@ -238,8 +247,8 @@ namespace Juice.Storage.Local
             var directory = Path.GetDirectoryName(filePath);
 
             var files = string.IsNullOrEmpty(directory) ?
-                await _client.GetNameListingAsync(token)
-                : await _client.GetNameListingAsync(directory, token);
+                await _client!.GetNameListingAsync(token)
+                : await _client!.GetNameListingAsync(directory, token);
 
             return files
                 .Where(f => Path.GetFileNameWithoutExtension(f).StartsWith(fileNameWithoutExtension, StringComparison.OrdinalIgnoreCase)

@@ -134,6 +134,7 @@ namespace Juice.Storage.Abstractions
         public abstract Task<Stream> ReadAsync(string filePath, CancellationToken token);
         public abstract Task WriteAsync(string filePath, Stream stream, long offset, TransferOptions options, CancellationToken token);
         public abstract Task DeleteAsync(string filePath, CancellationToken token);
+        public abstract Task PreserveModifiedTimeAsync(string filePath, DateTimeOffset? modifiedTime, CancellationToken token);
 
         #region IDisposable Support
 

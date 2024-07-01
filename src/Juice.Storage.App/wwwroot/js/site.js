@@ -21,8 +21,8 @@ function clear() {
     document.getElementById("uploadId").value = "";
 }
 
-uploader.onsuccess = function (upload, progress) {
-    console.log("success", upload);
+uploader.onsuccess = function (upload, progress, dateModifiedPreserved) {
+    console.log("success", upload, dateModifiedPreserved);
     document.getElementById("message").innerHTML = progress.message;
     clear();
 }

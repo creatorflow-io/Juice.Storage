@@ -48,11 +48,24 @@ namespace Juice.Storage
             _mediator = mediator;
         }
 
-        public async Task CompleteAsync(Guid uploadId, CancellationToken token)
+        public async Task<bool> CompleteAsync(Guid uploadId, CancellationToken token)
         {
+            var preserved = false;
             if (await _uploadRepository.ExistsAsync(_storageResolver.Identity, uploadId, token))
             {
                 var file = await _uploadRepository.GetAsync(_storageResolver.Identity, uploadId, token);
+
+                if (file.LastModified.HasValue && _options.Value.PreserveDateModified)
+                {
+                    try
+                    {
+                        await _storage.PreserveModifiedTimeAsync(file.Name, file.LastModified, token);
+                        preserved = true;
+                    }catch
+                    {
+                        // ignored
+                    }
+                }
 
                 if (_fileRepository != null)
                 {
@@ -65,6 +78,7 @@ namespace Juice.Storage
                 }
                 await _uploadRepository.RemoveAsync(_storageResolver.Identity, uploadId, token);
             }
+            return preserved;
         }
 
         public async Task FailureAsync(Guid uploadId, CancellationToken token)
@@ -186,7 +200,7 @@ namespace Juice.Storage
             }
         }
 
-        public async Task<(bool Completed, long Size)> UploadAsync(Guid uploadId, Stream stream, long offset, CancellationToken token)
+        public async Task<(bool Completed, bool DateModifiedPreserved, long Size)> UploadAsync(Guid uploadId, Stream stream, long offset, CancellationToken token)
         {
             if (!await _uploadRepository.ExistsAsync(_storageResolver.Identity, uploadId, token))
             {
@@ -212,10 +226,10 @@ namespace Juice.Storage
             var fileSize = await _storage.FileSizeAsync(fileName, token);
             if (fileSize == file.PackageSize)
             {
-                await CompleteAsync(uploadId, token);
-                return (true, fileSize);
+                var preserved = await CompleteAsync(uploadId, token);
+                return (true, preserved, fileSize);
             }
-            return (false, fileSize);
+            return (false, false, fileSize);
         }
     }
 

@@ -75,7 +75,7 @@ namespace Juice.Storage.Local
             {
                 throw new ArgumentNullException(nameof(filePath));
             }
-            var fullPath = Path.Combine(StorageEndpoint.Uri, filePath);
+            var fullPath = Path.Combine(StorageEndpoint!.Uri, filePath);
             var directory = Path.GetDirectoryName(fullPath);
             if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
@@ -118,7 +118,7 @@ namespace Juice.Storage.Local
 
             return policy.Execute(() =>
             {
-                var fullPath = Path.Combine(StorageEndpoint.Uri, filePath);
+                var fullPath = Path.Combine(StorageEndpoint!.Uri, filePath);
                 File.Delete(fullPath);
                 return Task.CompletedTask;
             });
@@ -128,7 +128,7 @@ namespace Juice.Storage.Local
         {
             EnsureConnected();
 
-            var fullPath = Path.Combine(StorageEndpoint.Uri, filePath);
+            var fullPath = Path.Combine(StorageEndpoint!.Uri, filePath);
             return Task.FromResult(File.Exists(fullPath));
         }
         public override async Task<long> FileSizeAsync(string filePath, CancellationToken token)
@@ -143,7 +143,7 @@ namespace Juice.Storage.Local
 
             return policy.Execute(() =>
             {
-                var fullPath = Path.Combine(StorageEndpoint.Uri, filePath);
+                var fullPath = Path.Combine(StorageEndpoint!.Uri, filePath);
                 return new FileInfo(fullPath).Length;
             });
         }
@@ -152,7 +152,7 @@ namespace Juice.Storage.Local
         {
             EnsureConnected();
 
-            var fullPath = Path.Combine(StorageEndpoint.Uri, filePath);
+            var fullPath = Path.Combine(StorageEndpoint!.Uri, filePath);
             return Task.FromResult<Stream>(File.OpenRead(fullPath));
         }
 
@@ -160,7 +160,7 @@ namespace Juice.Storage.Local
         {
             EnsureConnected();
 
-            var fullPath = Path.Combine(StorageEndpoint.Uri, filePath);
+            var fullPath = Path.Combine(StorageEndpoint!.Uri, filePath);
 
             if (offset > 0)
             {
@@ -218,6 +218,19 @@ namespace Juice.Storage.Local
             });
         }
 
+        public override Task PreserveModifiedTimeAsync(string filePath, DateTimeOffset? modifiedTime, CancellationToken token)
+        {
+            EnsureConnected();
+
+            if (modifiedTime.HasValue)
+            {
+                var fullPath = Path.Combine(StorageEndpoint!.Uri, filePath);
+
+                File.SetLastWriteTimeUtc(fullPath, modifiedTime.Value.UtcDateTime);
+            }
+            return Task.CompletedTask;
+        }
+
         protected override async Task<IList<string>> FindFileVersionsAsync(string filePath, CancellationToken token)
         {
             await Task.Yield();
@@ -226,7 +239,7 @@ namespace Juice.Storage.Local
 
             var searchPattern = fileNameWithoutExtension;
 
-            var directory = Path.Combine(StorageEndpoint.Uri, Path.GetDirectoryName(filePath) ?? "");
+            var directory = Path.Combine(StorageEndpoint!.Uri, Path.GetDirectoryName(filePath) ?? "");
 
             return Directory.GetFiles(directory, searchPattern)
                 .Where(f => Path.GetExtension(f).Equals(extension, StringComparison.OrdinalIgnoreCase)).ToList();
