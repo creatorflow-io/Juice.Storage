@@ -63,5 +63,14 @@
         /// <returns></returns>
         Task DeleteAsync(string filePath, CancellationToken token);
 
+        /// <summary>
+        /// Try to set modified time of file on storage
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <param name="modifiedTime"></param>
+        /// <param name="token"></param>
+        /// <returns></returns>
+        Task PreserveModifiedTimeAsync(string filePath, DateTimeOffset? modifiedTime, CancellationToken token);
+
     }
 }

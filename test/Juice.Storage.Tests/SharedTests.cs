@@ -115,7 +115,8 @@ namespace Juice.Storage.Tests
                 string? contentType = default;
                 string? correlationId = default;
 
-                var fileInfo = new InitialFileInfo(fileName, file.Length, contentType, fileName, DateTimeOffset.Now, correlationId, default, FileExistsBehavior.AscendedCopyNumber);
+                var fileInfo = new InitialFileInfo(fileName, file.Length, contentType, fileName, DateTimeOffset.Now, correlationId,
+                    default, FileExistsBehavior.AscendedCopyNumber);
 
                 var operationResult = await uploadManager.InitAsync(fileInfo, default);
 

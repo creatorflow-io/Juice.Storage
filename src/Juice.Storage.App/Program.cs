@@ -48,7 +48,7 @@ app.UseCors(builder =>
     builder.AllowAnyHeader()
     .AllowAnyMethod()
     .AllowAnyOrigin()
-    .WithExposedHeaders("x-offset", "x-completed");
+    .WithExposedHeaders("x-offset", "x-completed", "x-date-modified-preserved");
 });
 
 app.UseRouting();

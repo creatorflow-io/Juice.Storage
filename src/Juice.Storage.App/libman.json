@@ -3,7 +3,7 @@
   "defaultProvider": "unpkg",
   "libraries": [
     {
-      "library": "@juice-js/upload@1.0.10",
+      "library": "@juice-js/upload@1.1.0",
       "destination": "wwwroot/lib/juice-js/upload/"
     },
     {
