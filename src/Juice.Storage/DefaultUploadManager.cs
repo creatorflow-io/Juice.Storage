@@ -7,6 +7,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Juice.Storage
@@ -27,11 +28,14 @@ namespace Juice.Storage
         private IOptionsSnapshot<UploadOptions> _options;
 
         private IMediator? _mediator;
+
+        private ILogger _logger;
         public DefaultUploadManager(
             IStorageResolver storageResolver,
             IStorage storage,
             IUploadRepository<T> uploadRepository,
             IOptionsSnapshot<UploadOptions> options,
+            ILogger<DefaultUploadManager<T>> logger,
             IHttpContextAccessor? httpContextAccessor = null,
             IFileRepository<T>? fileRepository = null,
             IFileNameGenerator<T>? fileNameGenerator = null,
@@ -46,6 +50,7 @@ namespace Juice.Storage
             _authorizationService = httpContextAccessor?.HttpContext?.RequestServices?.GetService<IAuthorizationService>();
             _httpContextAccessor = httpContextAccessor;
             _mediator = mediator;
+            _logger = logger;
         }
 
         public async Task<bool> CompleteAsync(Guid uploadId, CancellationToken token)
@@ -76,7 +81,7 @@ namespace Juice.Storage
                     var username = _httpContextAccessor?.HttpContext?.User?.FindFirst(ClaimTypes.Name)?.Value;
                     await _mediator.Publish(new FileUploadedEvent(file.Id, file.Name, file.ContentType, file.PackageSize, file.CorrelationId, file.Metadata, username), token);
                 }
-                await _uploadRepository.RemoveAsync(_storageResolver.Identity, uploadId, token);
+                await _uploadRepository.CompleteAsync(_storageResolver.Identity, uploadId, token);
             }
             return preserved;
         }
@@ -97,6 +102,10 @@ namespace Juice.Storage
                     await _mediator.Publish(new FileUploadFailedEvent(file.Name, file.CorrelationId, username), token);
                 }
             }
+            else
+            {
+                _logger.LogInformation("UploadId {UploadId} could not be found.", uploadId);
+            }
         }
 
         public async Task TimedoutAsync(Guid uploadId, CancellationToken token)
@@ -106,6 +115,10 @@ namespace Juice.Storage
                 var file = await _uploadRepository.GetAsync(_storageResolver.Identity, uploadId, token);
                 await _storage.DeleteAsync(file.Name, token);
                 await _uploadRepository.RemoveAsync(_storageResolver.Identity, uploadId, token);
+            }
+            else
+            {
+                _logger.LogInformation("UploadId {UploadId} could not be found.", uploadId);
             }
         }
 
