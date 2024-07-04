@@ -46,6 +46,12 @@ namespace Microsoft.Extensions.DependencyInjection
         public static IServiceCollection AddInMemoryStorageMaintainServices(this IServiceCollection services,
             IConfiguration configuration, string[] identities,
             Action<StorageMaintainOptions>? configure = default)
+            => services.AddStorageMaintainServices<UploadFileInfo>(configuration, identities, configure);
+
+        public static IServiceCollection AddStorageMaintainServices<T>(this IServiceCollection services,
+            IConfiguration configuration, string[] identities,
+            Action<StorageMaintainOptions>? configure = default)
+            where T : class, IFile, new()
         {
             services.Configure<StorageMaintainOptions>(configuration);
             if (configure != null)
@@ -58,7 +64,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 {
                     var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
                     var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-                    return new CleanupTimedoutUploadService<UploadFileInfo>(loggerFactory, scopeFactory, identity);
+                    return new CleanupTimedoutUploadService<T>(loggerFactory, scopeFactory, identity);
                 });
             }
 
