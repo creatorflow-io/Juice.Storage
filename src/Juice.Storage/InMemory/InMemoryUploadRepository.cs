@@ -13,6 +13,12 @@ namespace Juice.Storage.InMemory
             return Task.CompletedTask;
         }
 
+        public Task CompleteAsync(string storageIdentity, Guid uploadId, CancellationToken token)
+        {
+            _uploads[storageIdentity].RemoveAll(u => u.Id == uploadId);
+            return Task.CompletedTask;
+        }
+
         public Task AddAsync(string storageIdentity, UploadFileInfo item)
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
