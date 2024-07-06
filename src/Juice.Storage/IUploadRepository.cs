@@ -9,6 +9,6 @@
         Task AddAsync(string storageIdentity, T item);
         Task AbortAsync(string storageIdentity, Guid uploadId, bool fileDeleted);
         Task CompleteAsync(string storageIdentity, Guid uploadId, CancellationToken token);
-        Task<IEnumerable<T>> FindAllBeforeAsync(string storageIdentity, DateTimeOffset date, CancellationToken token);
+        Task<IEnumerable<T>> FindAllForCleanupAsync(string storageIdentity, DateTimeOffset beforeDate, CancellationToken token);
     }
 }
