@@ -36,7 +36,7 @@ namespace Juice.Storage.BackgroundTasks
                     var dateToCleanup = DateTimeOffset.Now.Subtract(options.Value.CleanupAfter);
 
                     var uploads = await scope.ServiceProvider.GetRequiredService<IUploadRepository<T>>()
-                        .FindAllBeforeAsync(_identity, dateToCleanup, stoppingToken);
+                        .FindAllForCleanupAsync(_identity, dateToCleanup, stoppingToken);
 
                     if (uploads.Any())
                     {

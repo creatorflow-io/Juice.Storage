@@ -38,11 +38,11 @@ namespace Juice.Storage.InMemory
             return Task.FromResult(_uploads.ContainsKey(storageIdentity) && _uploads[storageIdentity].Any(u => u.Id == uploadId));
         }
 
-        public Task<IEnumerable<UploadFileInfo>> FindAllBeforeAsync(string storageIdentity, DateTimeOffset date, CancellationToken token)
+        public Task<IEnumerable<UploadFileInfo>> FindAllForCleanupAsync(string storageIdentity, DateTimeOffset beforeDate, CancellationToken token)
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
             return Task.FromResult(_uploads.ContainsKey(storageIdentity)
-                ? _uploads[storageIdentity].Where(u => u.StartedTime < date)
+                ? _uploads[storageIdentity].Where(u => u.StartedTime < beforeDate)
                     .ToArray().AsEnumerable() // to avoid "Collection was modified; enumeration operation may not execute." error
                 : Array.Empty<UploadFileInfo>());
         }
