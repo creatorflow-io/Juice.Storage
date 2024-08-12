@@ -48,7 +48,7 @@ namespace Juice.Storage.Tests
         public async Task File_should_create_Async()
         {
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
-                .Configure(new StorageEndpoint(@"127.0.0.1/Working", default, "demo", "demo", Protocol.Ftp));
+                .Configure(new StorageEndpoint(@"127.0.0.1/XUnit", default, "demo", "demo", Protocol.Ftp));
 
             await SharedTests.File_should_create_Async(storage);
         }

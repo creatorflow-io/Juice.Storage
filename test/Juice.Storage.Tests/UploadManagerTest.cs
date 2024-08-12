@@ -4,6 +4,7 @@ using Juice.Extensions.DependencyInjection;
 using Juice.Storage.Abstractions;
 using Juice.Storage.InMemory;
 using Juice.Storage.Local;
+using Juice.Storage.Tests.Services;
 using Juice.XUnit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -218,6 +219,84 @@ namespace Juice.Storage.Tests
                 var mananger = resolver.ServiceProvider.GetRequiredService<IUploadManager>();
 
                 await SharedTests.File_upload_Async(mananger, _output);
+            }
+        }
+
+        [IgnoreOnCIFact(DisplayName = "Quota limit exceeded")]
+        public async Task Quota_limit_should_exceeded_Async()
+        {
+
+            var resolver = new DependencyResolver
+            {
+                CurrentDirectory = AppContext.BaseDirectory
+            };
+
+            resolver.ConfigureServices(services =>
+            {
+
+                var configService = services.BuildServiceProvider().GetRequiredService<IConfigurationService>();
+                var configuration = configService.GetConfiguration();
+
+                services.AddSingleton(_output);
+
+                services.AddLogging(builder =>
+                {
+                    builder.ClearProviders()
+                        .AddTestOutputLogger()
+                        .AddConfiguration(configuration.GetSection("Logging"));
+                });
+
+                services.AddStorage();
+                services.AddInMemoryUploadManager(configuration.GetSection("Storage"));
+                services.AddLocalStorageProviders();
+
+                services.AddHttpContextAccessor();
+
+                services.AddScoped<IQuotaChecker<UploadFileInfo>, QuotaCheckerService<UploadFileInfo>>();
+
+                services.PostConfigure<InMemoryStorageOptions>(options =>
+                {
+                    options.Storages = new InMemory.Storage[]
+                    {
+                        new InMemory.Storage
+                        {
+                            WebBasePath = "/storage1",
+                            Endpoints = new Endpoint[]
+                            {
+                                new Endpoint
+                                {
+                                    Protocol = Protocol.Smb,
+                                    BasePath = @"\\172.16.201.171",
+                                    Uri = @"\\172.16.201.171\Demo\XUnit",
+                                    Identity = "demonas",
+                                    Password = "demonas"
+                                }
+                            }
+                        }
+                    };
+                });
+
+                services.AddMediatR(options =>
+                {
+                    options.RegisterServicesFromAssemblyContaining<UploadManagerTest>();
+                });
+
+            });
+
+
+            var storageResolver = resolver.ServiceProvider.GetRequiredService<IStorageResolver>();
+            using (storageResolver)
+            {
+                await storageResolver.TryResolveAsync("/storage1");
+
+                Assert.True(storageResolver.IsResolved);
+
+                var mananger = resolver.ServiceProvider.GetRequiredService<IUploadManager>();
+
+                await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                {
+                    await SharedTests.File_upload_Async(mananger, _output);
+                });
             }
         }
     }

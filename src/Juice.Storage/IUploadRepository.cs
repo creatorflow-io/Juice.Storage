@@ -1,7 +1,7 @@
 ﻿namespace Juice.Storage
 {
     public interface IUploadRepository<T>
-        where T : class, IFile, new()
+        where T : class, IFile
     {
         Task<bool> ExistsAsync(string storageIdentity, Guid uploadId, CancellationToken token);
         Task<T> GetAsync(string storageIdentity, Guid uploadId, CancellationToken token);

@@ -14,7 +14,11 @@
     <ItemGroup>
         <ProjectReference Include="..\Juice.Storage.Abstractions\Juice.Storage.Abstractions.csproj" />
     </ItemGroup>
-
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+            <_Parameter1>Juice.Storage.Tests</_Parameter1>
+        </AssemblyAttribute>
+    </ItemGroup>
     <ItemGroup>
         <PackageReference Include="Juice" Version="$(JuiceRefVersion)" />
         <PackageReference Include="Newtonsoft.Json" Version="*" />
