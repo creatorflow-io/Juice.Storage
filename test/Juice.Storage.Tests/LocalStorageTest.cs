@@ -3,6 +3,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Juice.Extensions.DependencyInjection;
+using Juice.Services;
 using Juice.Storage.Abstractions;
 using Juice.XUnit;
 using Microsoft.Extensions.DependencyInjection;
@@ -53,7 +54,7 @@ namespace Juice.Storage.Tests
         {
 
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
-                .Configure(new StorageEndpoint(@"C:\Workspace\Storage", default));
+                .Configure(new StorageEndpoint(@"C:\Workspace\Storage\XUnit", default));
 
             await SharedTests.File_should_create_Async(storage);
         }
@@ -63,7 +64,7 @@ namespace Juice.Storage.Tests
         {
 
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
-                 .Configure(new StorageEndpoint(@"C:\Workspace\Storage", default));
+                 .Configure(new StorageEndpoint(@"C:\Workspace\Storage\XUnit", default));
 
             await SharedTests.File_create_should_error_Async(storage);
         }
@@ -72,7 +73,7 @@ namespace Juice.Storage.Tests
         public async Task File_create_should_add_copy_number_Async()
         {
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
-                 .Configure(new StorageEndpoint(@"C:\Workspace\Storage", default));
+                 .Configure(new StorageEndpoint(@"C:\Workspace\Storage\XUnit", default));
 
             await SharedTests.File_create_should_add_copy_number_Async(storage);
         }
@@ -80,10 +81,10 @@ namespace Juice.Storage.Tests
         [IgnoreOnCIFact(DisplayName = "Network share access with credential")]
         public async Task File_create_on_network_Async()
         {
-            var generator = new Services.DefaultStringIdGenerator();
+            var generator = new DefaultStringIdGenerator();
             var file = @"Test\" + generator.GenerateRandomId(26) + ".txt";
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
-                .Configure(new StorageEndpoint(@"\\172.16.201.171\Demo\XUnit", @"\\172.16.201.171", "demonas", "demonas", Protocol.Smb));
+                .Configure(new StorageEndpoint(@"\\127.0.0.1\Storage\XUnit", @"\\127.0.0.1", "storage", "storage", Protocol.Smb));
             var createdFile = await storage.CreateAsync(file, new CreateFileOptions { FileExistsBehavior = FileExistsBehavior.RaiseError }, default);
 
             Assert.True(storage.ExistsAsync(createdFile, default).GetAwaiter().GetResult());
@@ -95,7 +96,7 @@ namespace Juice.Storage.Tests
         [IgnoreOnCIFact(DisplayName = "Network share is inaccessible")]
         public async Task File_create_network_inaccessible_Async()
         {
-            var generator = new Services.DefaultStringIdGenerator();
+            var generator = new DefaultStringIdGenerator();
             var file = @"Test\" + generator.GenerateRandomId(26) + ".txt";
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
                 .Configure(new StorageEndpoint(@"\\test.juice.lan", default));
@@ -107,7 +108,7 @@ namespace Juice.Storage.Tests
             });
 
             var storage1 = _serviceProvider.GetRequiredService<IStorageProvider>()
-                .Configure(new StorageEndpoint(@"\\172.16.201.171\Demo\Xunit", @"\\172.16.201.171", "demonas", "demonas1", Protocol.Smb));
+                .Configure(new StorageEndpoint(@"\\127.0.0.1\Storage\Xunit", @"\\127.0.0.1", "storage", "storage", Protocol.Smb));
             var createdFile = await storage1.CreateAsync(file, new CreateFileOptions { FileExistsBehavior = FileExistsBehavior.RaiseError }, default);
 
         }

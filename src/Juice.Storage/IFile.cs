@@ -12,5 +12,6 @@ namespace Juice.Storage
         public string? CorrelationId { get; set; }
         public JObject? Metadata { get; set; }
         public DateTimeOffset? LastModified { get; set; }
+        public bool DateModifiedPreserved { get; set; }
     }
 }

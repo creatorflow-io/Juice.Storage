@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 using Newtonsoft.Json.Linq;
 
 namespace Juice.Storage.InMemory
@@ -81,5 +82,6 @@ namespace Juice.Storage.InMemory
         public string? CorrelationId { get; set; }
         public JObject? Metadata { get; set; }
         public DateTimeOffset StartedTime { get; set; }
+        public bool DateModifiedPreserved { get; set; }
     }
 }

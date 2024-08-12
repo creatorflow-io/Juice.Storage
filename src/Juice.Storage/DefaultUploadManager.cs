@@ -6,7 +6,6 @@ using Juice.Storage.Events;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -21,6 +20,7 @@ namespace Juice.Storage
         private IUploadRepository<T> _uploadRepository;
         private IFileRepository<T>? _fileRepository;
         private IFileNameGenerator<T>? _fileNameGenerator;
+        private IQuotaChecker<T>? _quotaChecker;
 
         private IAuthorizationService? _authorizationService;
         private IHttpContextAccessor? _httpContextAccessor;
@@ -36,9 +36,11 @@ namespace Juice.Storage
             IUploadRepository<T> uploadRepository,
             IOptionsSnapshot<UploadOptions> options,
             ILogger<DefaultUploadManager<T>> logger,
-            IHttpContextAccessor? httpContextAccessor = null,
-            IFileRepository<T>? fileRepository = null,
-            IFileNameGenerator<T>? fileNameGenerator = null,
+            IHttpContextAccessor? httpContextAccessor = default,
+            IFileRepository<T>? fileRepository = default,
+            IFileNameGenerator<T>? fileNameGenerator = default,
+            IAuthorizationService? authorizationService = default,
+            IQuotaChecker<T>? quotaService = default,
             IMediator? mediator = default)
         {
             _storageResolver = storageResolver;
@@ -47,8 +49,13 @@ namespace Juice.Storage
             _options = options;
             _fileRepository = fileRepository;
             _fileNameGenerator = fileNameGenerator;
-            _authorizationService = httpContextAccessor?.HttpContext?.RequestServices?.GetService<IAuthorizationService>();
+            _quotaChecker = quotaService;
+            _authorizationService = authorizationService;
             _httpContextAccessor = httpContextAccessor;
+            if(authorizationService !=null && httpContextAccessor == null)
+            {
+                throw new ArgumentNullException(nameof(httpContextAccessor));
+            }
             _mediator = mediator;
             _logger = logger;
         }
@@ -66,7 +73,9 @@ namespace Juice.Storage
                     {
                         await _storage.PreserveModifiedTimeAsync(file.Name, file.LastModified, token);
                         preserved = true;
-                    }catch
+                        file.DateModifiedPreserved = true;
+                    }
+                    catch
                     {
                         // ignored
                     }
@@ -148,14 +157,20 @@ namespace Juice.Storage
                 {
                     throw new ArgumentException($"Uploading file {fileName} no longer exists.");
                 }
+                var size = await _storage.FileSizeAsync(fileName, token);
+
+                if (_quotaChecker != null
+                    && await _quotaChecker.IsQuotaLimitExceededAsync(_httpContextAccessor?.HttpContext?.User, file, size))
+                {
+                    throw new InvalidOperationException("Quota limit exceeded.");
+                }
 
                 if (_mediator != null)
                 {
                     var username = _httpContextAccessor?.HttpContext?.User?.FindFirst(ClaimTypes.Name)?.Value;
-                    await _mediator.Publish(new FileUploadResumedEvent(file.Id, fileName, file.CorrelationId, username), token);
+                    await _mediator.Publish(new FileUploadResumedEvent(file.Id, fileName, size, file.CorrelationId, username), token);
                 }
 
-                var size = await _storage.FileSizeAsync(fileName, token);
                 return new UploadConfiguration(fileInfo.UploadId.Value, fileName, _options.Value.SectionSize, true, file.PackageSize, size);
             }
             else
@@ -178,13 +193,18 @@ namespace Juice.Storage
                     file.Name = await _fileNameGenerator.GenerateAsync(file, token);
                 }
 
-                if (_httpContextAccessor?.HttpContext != null && _authorizationService != null)
+                if (_authorizationService != null)
                 {
-                    var authorizationResult = await _authorizationService.AuthorizeAsync(_httpContextAccessor.HttpContext.User, file, StoragePolicies.CreateFile);
+                    var authorizationResult = await _authorizationService.AuthorizeAsync(_httpContextAccessor!.HttpContext!.User, file, StoragePolicies.CreateFile);
                     if (!authorizationResult.Succeeded)
                     {
                         throw new UnauthorizedAccessException("You are unauthorized to upload this file.");
                     }
+                }
+                if (_quotaChecker != null
+                   && await _quotaChecker.IsQuotaLimitExceededAsync(_httpContextAccessor?.HttpContext?.User, file))
+                {
+                    throw new InvalidOperationException("Quota limit exceeded.");
                 }
                 var createdFileName = default(string);
                 try
