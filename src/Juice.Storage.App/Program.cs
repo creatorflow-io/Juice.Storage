@@ -7,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
+builder.Services.AddControllers();
 
 builder.Services.AddStorage();
 builder.Services.AddInMemoryUploadManager(builder.Configuration.GetSection("Juice:Storage"));
@@ -51,8 +52,6 @@ app.UseCors(builder =>
     .WithExposedHeaders("x-offset", "x-completed", "x-date-modified-preserved");
 });
 
-app.UseRouting();
-
 app.UseAuthorization();
 
 app.MapRazorPages();
@@ -60,8 +59,12 @@ app.MapRazorPages();
 app.UseStorage(options =>
 {
     options.Endpoints = new string[] { "/storage", "/storage1" };
-    options.SupportDownloadByPath = true;
+    options.RewritePath = true;
 });
+
+app.UseRouting();
+
+app.MapDefaultControllerRoute();
 
 app.Run();
 
