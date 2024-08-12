@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 using Newtonsoft.Json.Linq;
 
 namespace Juice.Storage.InMemory
@@ -71,7 +70,7 @@ namespace Juice.Storage.InMemory
         }
     }
 
-    internal class UploadFileInfo : IFile
+    public class UploadFileInfo : IFile
     {
         public Guid Id { get; init; }
         public string Name { get; set; }

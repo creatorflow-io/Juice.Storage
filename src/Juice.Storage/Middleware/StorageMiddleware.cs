@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Net.Http;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Juice.Storage.Abstractions;
 using Juice.Storage.Authorization;
@@ -67,10 +68,12 @@ namespace Juice.Storage.Middleware
                                 case "/failure":
                                     await InvokeFailureAsync(context);
                                     break;
-                                case "/file":
-                                    await InvokeDownloadAsync(context);
-                                    break;
                                 default:
+                                    if (_options.RewritePath && context.Request.Path.StartsWithSegments(identity, out var matched, out var newPath))
+                                    {
+                                        context.Request.PathBase = context.Request.PathBase.Add(matched);
+                                        context.Request.Path = newPath;
+                                    }
                                     await _next(context);
                                     break;
                             }
@@ -522,15 +525,6 @@ namespace Juice.Storage.Middleware
             }
             try
             {
-                // Consider using an asset management service to manage the assets and access control
-                if (!_options.SupportDownloadByPath)
-                {
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    await context.Response.WriteAsync("This storage does not support download file by its path!");
-                    return;
-                }
-
-
                 if (_resolver == null || !_resolver.IsResolved)
                 {
                     context.Response.StatusCode = StatusCodes.Status400BadRequest;
@@ -540,7 +534,7 @@ namespace Juice.Storage.Middleware
                 var path = _resolver.Identity + "/file";
                 var filePath = context.Request.Path.ToString().Substring(path.Length)
                     .TrimStart('/');
-                var storage = _resolver.Storage;
+                var storage = _resolver!.Storage!;
 
                 filePath ??= context.Request.Query
                     .Where(q => q.Key.Equals("fileName", StringComparison.OrdinalIgnoreCase))
