@@ -23,7 +23,7 @@
         </AssemblyAttribute>
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="Juice" Version="$(JuiceRefVersion)" />
+        <PackageReference Include="Juice" Version="$(JuiceVersion)" />
         <PackageReference Include="Newtonsoft.Json" Version="*" />
         <PackageReference Include="MediatR" Version="$(MediatRVersion)" />
     </ItemGroup>

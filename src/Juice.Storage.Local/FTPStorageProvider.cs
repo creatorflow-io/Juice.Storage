@@ -7,7 +7,7 @@ namespace Juice.Storage.Local
 {
     public class FTPStorageProvider : StorageProviderBase
     {
-        private FtpClient? _client;
+        private AsyncFtpClient? _client;
 
         public const string FtpAddressPattern = @"^(?<protocol>ftp[s]{0,1}:\/\/)*(?<host>[\w\.]+)[:]*(?<port>[0-9]+)*(?<working>[\/][^\n]+)*$";
 
@@ -50,13 +50,16 @@ namespace Juice.Storage.Local
 
         private void Init()
         {
+            if (StorageEndpoint == null)
+            {
+                throw new Exception("Storage endpoint is not set. Please call Configure method first.");
+            }
             var match = new Regex(FtpAddressPattern, RegexOptions.IgnoreCase).Match(StorageEndpoint.Uri);
             if (!match.Success)
             {
                 throw new ArgumentException("Ftp URI does not match. Please try this patterns: ftp://localhost, ftps://localhost:2121, locahost/working/dir...");
             }
-            _client = new FtpClient(match.Groups["host"].Value);
-
+            _client = new AsyncFtpClient(match.Groups["host"].Value);
             if (match.Groups["port"].Value != null && int.TryParse(match.Groups["port"].Value, out var port))
             {
                 _client.Port = port;
@@ -75,18 +78,17 @@ namespace Juice.Storage.Local
             {
                 Init();
             }
-            if (!_client.IsConnected)
+            if(!_client.IsConnected)
             {
-                await _client.ConnectAsync(token);
-
+                await _client.Connect(token);
             }
             if (!string.IsNullOrEmpty(_workingDirectory))
             {
-                if (!await _client.DirectoryExistsAsync(_workingDirectory, token))
+                if (!await _client.DirectoryExists(_workingDirectory, token))
                 {
-                    await _client.CreateDirectoryAsync(_workingDirectory, token);
+                    await _client.CreateDirectory(_workingDirectory, token);
                 }
-                await _client.SetWorkingDirectoryAsync(_workingDirectory, token);
+                await _client.SetWorkingDirectory(_workingDirectory, token);
             }
         }
 
@@ -95,15 +97,15 @@ namespace Juice.Storage.Local
             await EnsureConnectedAsync(token);
 
             var directory = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(directory) && !await _client!.DirectoryExistsAsync(directory))
+            if (!string.IsNullOrEmpty(directory) && !await _client!.DirectoryExists(directory))
             {
-                await _client.CreateDirectoryAsync(directory);
+                await _client.CreateDirectory(directory);
             }
 
-            if (!await _client!.FileExistsAsync(filePath, token))
+            if (!await _client!.FileExists(filePath, token))
             {
-                await (await _client.OpenWriteAsync(filePath)).DisposeAsync();
-                await _client.GetReplyAsync(token);
+                await (await _client.OpenWrite(filePath)).DisposeAsync();
+                await _client.GetReply(token);
                 return filePath;
             }
             var fileExistsBehavior = options?.FileExistsBehavior ?? FileExistsBehavior.RaiseError;
@@ -114,14 +116,14 @@ namespace Juice.Storage.Local
                 case FileExistsBehavior.Replace:
                     File.Delete(filePath);
 
-                    await (await _client.OpenWriteAsync(filePath)).DisposeAsync();
-                    await _client.GetReplyAsync(token);
+                    await (await _client.OpenWrite(filePath)).DisposeAsync();
+                    await _client.GetReply(token);
                     return filePath;
 
                 case FileExistsBehavior.AscendedCopyNumber:
                     var newPath = await GetNameAscendedCopyNumberAsync(filePath, default, token);
-                    await (await _client.OpenWriteAsync(newPath)).DisposeAsync();
-                    await _client.GetReplyAsync(token);
+                    await (await _client.OpenWrite(newPath)).DisposeAsync();
+                    await _client.GetReply(token);
                     return newPath;
                 default: throw new IOException("File is already exists.");
             }
@@ -130,28 +132,28 @@ namespace Juice.Storage.Local
         public override async Task DeleteAsync(string filePath, CancellationToken token)
         {
             await EnsureConnectedAsync(token).ConfigureAwait(false);
-            if (await _client!.FileExistsAsync(filePath, token))
+            if (await _client!.FileExists(filePath, token))
             {
-                await _client.DeleteFileAsync(filePath, token);
+                await _client.DeleteFile(filePath, token);
             }
         }
 
         public override async Task<bool> ExistsAsync(string filePath, CancellationToken token)
         {
             await EnsureConnectedAsync(token);
-            return await _client!.FileExistsAsync(filePath, token);
+            return await _client!.FileExists(filePath, token);
         }
 
         public override async Task<long> FileSizeAsync(string filePath, CancellationToken token)
         {
             await EnsureConnectedAsync(token);
-            return await _client!.GetFileSizeAsync(filePath, -1, token);
+            return await _client!.GetFileSize(filePath, -1, token);
         }
 
         public override async Task<Stream> ReadAsync(string filePath, CancellationToken token)
         {
             await EnsureConnectedAsync(token);
-            return await _client!.OpenReadAsync(filePath);
+            return await _client!.OpenRead(filePath);
         }
 
         public override async Task WriteAsync(string filePath, Stream stream, long offset, TransferOptions options, CancellationToken token)
@@ -166,7 +168,7 @@ namespace Juice.Storage.Local
                     throw new Exception("File cannot be resume from position");
                 }
 
-                using var ostream = await _client!.OpenAppendAsync(filePath);
+                using var ostream = await _client!.OpenAppend(filePath);
                 try
                 {
                     if (options.BufferSize.HasValue)
@@ -193,7 +195,7 @@ namespace Juice.Storage.Local
             }
             else
             {
-                using var ostream = await _client!.OpenWriteAsync(filePath);
+                using var ostream = await _client!.OpenWrite(filePath);
 
                 try
                 {
@@ -233,7 +235,7 @@ namespace Juice.Storage.Local
             if (modifiedTime.HasValue)
             {
                 await EnsureConnectedAsync(token);
-                await _client!.SetModifiedTimeAsync(filePath, modifiedTime.Value.UtcDateTime, token);
+                await _client!.SetModifiedTime(filePath, modifiedTime.Value.UtcDateTime, token);
             }
         }
 
@@ -247,8 +249,8 @@ namespace Juice.Storage.Local
             var directory = Path.GetDirectoryName(filePath);
 
             var files = string.IsNullOrEmpty(directory) ?
-                await _client!.GetNameListingAsync(token)
-                : await _client!.GetNameListingAsync(directory, token);
+                await _client!.GetNameListing(token)
+                : await _client!.GetNameListing(directory, token);
 
             return files
                 .Where(f => Path.GetFileNameWithoutExtension(f).StartsWith(fileNameWithoutExtension, StringComparison.OrdinalIgnoreCase)
