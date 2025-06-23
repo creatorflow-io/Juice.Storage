@@ -145,6 +145,10 @@ namespace Juice.Storage.Local
             return policy.Execute(() =>
             {
                 var fullPath = Path.Combine(StorageEndpoint!.Uri, filePath);
+                if (_logger.IsEnabled(LogLevel.Debug))
+                {
+                    _logger.LogDebug("Get file size for {fullPath}", fullPath);
+                }
                 return new FileInfo(fullPath).Length;
             });
         }
@@ -162,7 +166,10 @@ namespace Juice.Storage.Local
             EnsureConnected();
 
             var fullPath = Path.Combine(StorageEndpoint!.Uri, filePath);
-
+            if (_logger.IsEnabled(LogLevel.Debug))
+            {
+                _logger.LogDebug("Writing to {fullPath}, absolute path {absolute}", fullPath, Path.GetFullPath(fullPath));
+            }
             if (offset > 0)
             {
                 var size = await FileSizeAsync(filePath, token);
