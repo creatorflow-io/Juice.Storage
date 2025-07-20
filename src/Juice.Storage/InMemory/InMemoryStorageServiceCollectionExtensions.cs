@@ -18,11 +18,23 @@ namespace Microsoft.Extensions.DependencyInjection
             return services;
         }
 
-        public static IServiceCollection AddDefaultUploadManager<T>(this IServiceCollection services, IConfiguration configuration)
+        public static IServiceCollection AddDefaultUploadManager<T>(this IServiceCollection services, IConfiguration configuration,
+            Action<UploadOptions>? configure = default)
             where T : class, IFile, new()
         {
             services.Configure<UploadOptions>(configuration);
+            if (configure != null)
+            {
+                services.Configure(configure);
+            }
             services.AddScoped<IUploadManager, DefaultUploadManager<T>>();
+            return services;
+        }
+
+        public static IServiceCollection AddDefaultDownloadManager<T>(this IServiceCollection services, IConfiguration configuration)
+            where T : class, IFile, new()
+        {
+            services.AddScoped<IDownloadManager, DefaultDownloadManager<T>>();
             return services;
         }
 

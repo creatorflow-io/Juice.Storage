@@ -1,5 +1,8 @@
-﻿using Juice.Storage.Authorization;
+﻿using Juice.Storage;
+using Juice.Storage.App;
+using Juice.Storage.Authorization;
 using Juice.Storage.Extensions;
+using Juice.Storage.InMemory;
 using Juice.Storage.Local;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
@@ -19,6 +22,9 @@ builder.Services.AddInMemoryStorageMaintainServices(builder.Configuration.GetSec
         options.Interval = TimeSpan.FromMinutes(1);
     });
 builder.Services.AddLocalStorageProviders();
+
+builder.Services.AddSingleton<IFileRepository<UploadFileInfo>, InMemoryFileRepository>();
+builder.Services.AddDefaultDownloadManager<UploadFileInfo>(builder.Configuration.GetSection("Juice:Storage"));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors();

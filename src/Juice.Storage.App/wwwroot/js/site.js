@@ -24,6 +24,9 @@ function clear() {
 uploader.onsuccess = function (upload, progress, dateModifiedPreserved) {
     console.log("success", upload, dateModifiedPreserved);
     document.getElementById("message").innerHTML = progress.message;
+    var url = uploader.endpoint + "/file/" + upload.UploadId;
+    document.getElementById("video").setAttribute("src", url);
+    document.getElementById("video").load();
     clear();
 }
 

@@ -1,12 +1,12 @@
-﻿using System.Net.Http;
+﻿using System.IO;
+using System.Net.Mail;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Juice.Storage.Abstractions;
-using Juice.Storage.Authorization;
 using Juice.Storage.Dto;
 using Juice.Storage.Utilities;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -67,6 +67,9 @@ namespace Juice.Storage.Middleware
                                     break;
                                 case "/failure":
                                     await InvokeFailureAsync(context);
+                                    break;
+                                case "/file":
+                                    await InvokeDownloadAsync(context);
                                     break;
                                 default:
                                     if (_options.RewritePath && context.Request.Path.StartsWithSegments(identity, out var matched, out var newPath))
@@ -431,6 +434,29 @@ namespace Juice.Storage.Middleware
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
                 return;
             }
+            catch (BadHttpRequestException ex)
+            {
+                if (ex.Message.StartsWith("Request body too large"))
+                {
+                    // try to read the limitation from the message
+                    var match = Regex.Match(ex.Message, @"(\d+)");
+                    if (match.Success && long.TryParse(match.Groups[1].Value, out var limit))
+                    {
+                        UploadOptions.ServerMaxBodySizeFromHandledError = limit;
+                        context.Response.Headers.Append("x-upload-limit", limit.ToString());
+                    }
+                    context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+                }
+                else
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    if (logger.IsEnabled(LogLevel.Trace))
+                    {
+                        logger.LogTrace(ex, ex.StackTrace);
+                    }
+                    await context.Response.WriteAsync(ex.Message);
+                }
+            }
             catch (IOException ex)
             {
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
@@ -532,44 +558,89 @@ namespace Juice.Storage.Middleware
                     return;
                 }
                 var path = _resolver.Identity + "/file";
-                var filePath = context.Request.Path.ToString().Substring(path.Length)
-                    .TrimStart('/');
-                var storage = _resolver!.Storage!;
+                var fileId = context.Request.Path.ToString().Substring(path.Length)
+                    .TrimStart('/').Split('/').FirstOrDefault();
 
-                filePath ??= context.Request.Query
-                    .Where(q => q.Key.Equals("fileName", StringComparison.OrdinalIgnoreCase))
-                    .Select(q => q.Value.ToString())
-                    .FirstOrDefault()?.TrimStart('/');
-                if (string.IsNullOrEmpty(filePath))
+                if (string.IsNullOrEmpty(fileId) || !Guid.TryParse(fileId, out var id))
                 {
                     context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    await context.Response.WriteAsync("File ID is missing in the request path");
                     return;
                 }
 
-                var authorizationService = context.RequestServices.GetService<IAuthorizationService>();
-                if (authorizationService != null)
+                var downloadManager = context.RequestServices.GetService<IDownloadManager>();
+                if (downloadManager == null)
                 {
-                    var authorizationResult = await authorizationService.AuthorizeAsync(context.User, filePath, StoragePolicies.DownloadFile);
-                    if (!authorizationResult.Succeeded)
-                    {
-                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                        await context.Response.WriteAsync("You are unauthorized to download this file.");
-                        return;
-                    }
+                    context.Response.StatusCode = StatusCodes.Status501NotImplemented;
+                    await context.Response.WriteAsync("Download does not supported");
+                    return;
                 }
 
-                var exists = await storage.ExistsAsync(filePath, context.RequestAborted);
-                if (!exists)
+                var state = await downloadManager.GetStreamAsync(id, context.RequestAborted);
+                if (!state.SucceededWithData)
                 {
-                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    context.Response.StatusCode = state.IsUnauthorized() ? StatusCodes.Status403Forbidden
+                        : state.IsNotFound() ? StatusCodes.Status404NotFound
+                        : StatusCodes.Status400BadRequest;
+                    await context.Response.WriteAsync(state.ToString());
                     return;
+
                 }
 
                 context.Response.StatusCode = StatusCodes.Status200OK;
+                context.Response.ContentType = "application/octet-stream";
+                context.Response.Headers.Append("Accept-Ranges", "bytes");
 
-                using var stream = await storage.ReadAsync(filePath, context.RequestAborted);
+                using var stream = state.DataValue.Stream;
+                var totalLength = stream.Length;
+                // support for range requests
+                if (context.Request.Headers.ContainsKey("Range"))
+                {
+                    // Example: "Range: bytes=1000-"
+                    var rangeHeader = context.Request.Headers["Range"].ToString();
+
+                    if (RangeHeaderValue.TryParse(rangeHeader, out var rangeHeaderValue) &&
+                        rangeHeaderValue.Ranges.FirstOrDefault() is RangeItemHeaderValue range)
+                    {
+                        long start = range.From ?? 0;
+                        long end = range.To ?? (totalLength - 1);
+
+                        if (start >= totalLength || end >= totalLength || start > end)
+                        {
+                            context.Response.StatusCode = StatusCodes.Status416RangeNotSatisfiable;
+                            context.Response.Headers["Content-Range"] = $"bytes */{totalLength}";
+                            return;
+                        }
+
+                        long contentLength = end - start + 1;
+
+                        context.Response.StatusCode = StatusCodes.Status206PartialContent;
+                        context.Response.Headers["Content-Range"] = $"bytes {start}-{end}/{totalLength}";
+                        context.Response.ContentLength = contentLength;
+
+                        stream.Seek(start, SeekOrigin.Begin);
+                        await stream.CopyToAsync(context.Response.Body, (int)contentLength, context.RequestAborted);
+                        return;
+                    }
+                }
+                else {
+                    var fileName = context.Request.Query["fileName"].ToString();
+
+                    if (string.IsNullOrEmpty(fileName))
+                    {
+                        fileName = Path.GetFileName(state.DataValue.FileName);
+                    }
+                    context.Response.Headers.Append("Content-Disposition", $"attachment; filename=\"{fileName}\"");
+                }
+
+                // if no range is specified, send the whole file
+                context.Response.StatusCode = StatusCodes.Status200OK;
+                context.Response.ContentLength = totalLength;
+                
                 await stream.CopyToAsync(context.Response.Body, context.RequestAborted);
             }
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) { }
             catch (ArgumentException ex)
             {
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;

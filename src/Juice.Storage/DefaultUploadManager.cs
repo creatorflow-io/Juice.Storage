@@ -6,21 +6,22 @@ using Juice.Storage.Events;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Juice.Storage
 {
-    internal class DefaultUploadManager<T> : IUploadManager
-        where T : class, IFile, new()
+    internal class DefaultUploadManager<TFile> : IUploadManager
+        where TFile : class, IFile, new()
     {
         public IStorage Storage => _storage;
         private IStorageResolver _storageResolver;
         private IStorage _storage;
-        private IUploadRepository<T> _uploadRepository;
-        private IFileRepository<T>? _fileRepository;
-        private IFileNameGenerator<T>? _fileNameGenerator;
-        private IQuotaChecker<T>? _quotaChecker;
+        private IUploadRepository<TFile> _uploadRepository;
+        private IFileRepository<TFile>? _fileRepository;
+        private IFileNameGenerator<TFile>? _fileNameGenerator;
+        private IQuotaChecker<TFile>? _quotaChecker;
 
         private IAuthorizationService? _authorizationService;
         private IHttpContextAccessor? _httpContextAccessor;
@@ -33,14 +34,14 @@ namespace Juice.Storage
         public DefaultUploadManager(
             IStorageResolver storageResolver,
             IStorage storage,
-            IUploadRepository<T> uploadRepository,
+            IUploadRepository<TFile> uploadRepository,
             IOptionsSnapshot<UploadOptions> options,
-            ILogger<DefaultUploadManager<T>> logger,
+            ILogger<DefaultUploadManager<TFile>> logger,
             IHttpContextAccessor? httpContextAccessor = default,
-            IFileRepository<T>? fileRepository = default,
-            IFileNameGenerator<T>? fileNameGenerator = default,
+            IFileRepository<TFile>? fileRepository = default,
+            IFileNameGenerator<TFile>? fileNameGenerator = default,
             IAuthorizationService? authorizationService = default,
-            IQuotaChecker<T>? quotaService = default,
+            IQuotaChecker<TFile>? quotaService = default,
             IMediator? mediator = default)
         {
             _storageResolver = storageResolver;
@@ -138,6 +139,9 @@ namespace Juice.Storage
 
         public async Task<UploadConfiguration> InitAsync(InitialFileInfo fileInfo, CancellationToken token)
         {
+            var serverRequestBodyLimit = UploadOptions.ServerMaxBodySizeFromHandledError ?? _httpContextAccessor?.HttpContext?.Features.Get<IHttpMaxRequestBodySizeFeature>()?.MaxRequestBodySize;
+            var sectionSize = Math.Min(_options.Value.SectionSize, serverRequestBodyLimit ?? long.MaxValue);
+
             if (fileInfo.FileExistsBehavior == FileExistsBehavior.Resume)
             {
                 if (!fileInfo.UploadId.HasValue)
@@ -171,12 +175,12 @@ namespace Juice.Storage
                     await _mediator.Publish(new FileUploadResumedEvent(file.Id, fileName, size, file.CorrelationId, username), token);
                 }
 
-                return new UploadConfiguration(fileInfo.UploadId.Value, fileName, _options.Value.SectionSize, true, file.PackageSize, size);
+                return new UploadConfiguration(fileInfo.UploadId.Value, fileName, sectionSize, true, file.PackageSize, size);
             }
             else
             {
                 var id = Guid.NewGuid();
-                var file = new T()
+                var file = new TFile()
                 {
                     Id = id,
                     Name = fileInfo.Name,
@@ -220,7 +224,7 @@ namespace Juice.Storage
                         await _mediator.Publish(new FileUploadStartedEvent(file.Id, file.Name, file.ContentType, file.PackageSize, file.CorrelationId, file.Metadata, username), token);
                     }
 
-                    return new UploadConfiguration(id, createdFileName, _options.Value.SectionSize, false, fileInfo.FileSize, 0);
+                    return new UploadConfiguration(id, createdFileName, sectionSize, false, fileInfo.FileSize, 0);
                 }
                 catch (Exception)
                 {
