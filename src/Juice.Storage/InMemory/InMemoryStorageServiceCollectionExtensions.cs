@@ -10,34 +10,6 @@ namespace Microsoft.Extensions.DependencyInjection
 {
     public static class InMemoryStorageServiceCollectionExtensions
     {
-        public static IServiceCollection AddDefaultUploadManager<T>(this IServiceCollection services, Action<UploadOptions> configure)
-           where T : class, IFile, new()
-        {
-            services.Configure(configure);
-            services.AddScoped<IUploadManager, DefaultUploadManager<T>>();
-            return services;
-        }
-
-        public static IServiceCollection AddDefaultUploadManager<T>(this IServiceCollection services, IConfiguration configuration,
-            Action<UploadOptions>? configure = default)
-            where T : class, IFile, new()
-        {
-            services.Configure<UploadOptions>(configuration);
-            if (configure != null)
-            {
-                services.Configure(configure);
-            }
-            services.AddScoped<IUploadManager, DefaultUploadManager<T>>();
-            return services;
-        }
-
-        public static IServiceCollection AddDefaultDownloadManager<T>(this IServiceCollection services, IConfiguration configuration)
-            where T : class, IFile, new()
-        {
-            services.AddScoped<IDownloadManager, DefaultDownloadManager<T>>();
-            return services;
-        }
-
         public static IServiceCollection AddInMemoryUploadManager(this IServiceCollection services, IConfiguration configuration, Action<UploadOptions>? configure = default)
         {
             services.Configure<InMemoryStorageOptions>(configuration);
@@ -60,27 +32,5 @@ namespace Microsoft.Extensions.DependencyInjection
             Action<StorageMaintainOptions>? configure = default)
             => services.AddStorageMaintainServices<UploadFileInfo>(configuration, identities, configure);
 
-        public static IServiceCollection AddStorageMaintainServices<T>(this IServiceCollection services,
-            IConfiguration configuration, string[] identities,
-            Action<StorageMaintainOptions>? configure = default)
-            where T : class, IFile, new()
-        {
-            services.Configure<StorageMaintainOptions>(configuration);
-            if (configure != null)
-            {
-                services.Configure(configure);
-            }
-            foreach (var identity in identities)
-            {
-                services.AddTransient<IHostedService>(sp =>
-                {
-                    var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
-                    var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
-                    return new CleanupTimedoutUploadService<T>(loggerFactory, scopeFactory, identity);
-                });
-            }
-
-            return services;
-        }
     }
 }

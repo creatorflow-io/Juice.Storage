@@ -9,5 +9,7 @@ namespace Juice.Storage
     public interface IDownloadManager
     {
         Task<IOperationResult<(Stream Stream, string FileName)>> GetStreamAsync(Guid id, CancellationToken token);
+
+        Task<IOperationResult<Stream>> GetStreamAsync(string filePath, CancellationToken token);
     }
 }

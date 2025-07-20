@@ -558,13 +558,13 @@ namespace Juice.Storage.Middleware
                     return;
                 }
                 var path = _resolver.Identity + "/file";
-                var fileId = context.Request.Path.ToString().Substring(path.Length)
-                    .TrimStart('/').Split('/').FirstOrDefault();
 
-                if (string.IsNullOrEmpty(fileId) || !Guid.TryParse(fileId, out var id))
+                var filePath = context.Request.Path.ToString().Substring(path.Length).TrimStart('/');
+
+                if (string.IsNullOrEmpty(filePath))
                 {
                     context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    await context.Response.WriteAsync("File ID is missing in the request path");
+                    await context.Response.WriteAsync("File is missing in the request path");
                     return;
                 }
 
@@ -576,68 +576,98 @@ namespace Juice.Storage.Middleware
                     return;
                 }
 
-                var state = await downloadManager.GetStreamAsync(id, context.RequestAborted);
-                if (!state.SucceededWithData)
+                var fileId = filePath.Split('/').First();
+
+                Stream? stream = null;
+                string? fileName = null;
+                IOperationResult state;
+
+                if (Guid.TryParse(fileId, out var id))
+                {
+                    var rs = await downloadManager.GetStreamAsync(id, context.RequestAborted);
+                    state = rs;
+                    fileName = context.Request.Query["fileName"].ToString();
+                    if (string.IsNullOrEmpty(filePath))
+                    {
+                        if (string.IsNullOrEmpty(fileName))
+                        {
+                            fileName = Path.GetFileName(rs.DataValue.FileName);
+                        }
+                    }
+                    stream = rs.Data.Stream;
+                }
+                else
+                {
+                    // if fileId is not a Guid, it is a file path
+                    var rs = await downloadManager.GetStreamAsync(filePath, context.RequestAborted);
+                    state = rs;
+                    fileName = Path.GetFileName(filePath);
+                    stream = rs.Data;
+                }
+
+                if (!state.Succeeded)
                 {
                     context.Response.StatusCode = state.IsUnauthorized() ? StatusCodes.Status403Forbidden
                         : state.IsNotFound() ? StatusCodes.Status404NotFound
                         : StatusCodes.Status400BadRequest;
                     await context.Response.WriteAsync(state.ToString());
                     return;
-
+                }
+                if (stream == null || stream.Length == 0)
+                {
+                    context.Response.StatusCode = StatusCodes.Status404NotFound;
+                    await context.Response.WriteAsync("File not found or empty");
+                    return;
                 }
 
                 context.Response.StatusCode = StatusCodes.Status200OK;
                 context.Response.ContentType = "application/octet-stream";
                 context.Response.Headers.Append("Accept-Ranges", "bytes");
 
-                using var stream = state.DataValue.Stream;
-                var totalLength = stream.Length;
-                // support for range requests
-                if (context.Request.Headers.ContainsKey("Range"))
+                using (stream)
                 {
-                    // Example: "Range: bytes=1000-"
-                    var rangeHeader = context.Request.Headers["Range"].ToString();
-
-                    if (RangeHeaderValue.TryParse(rangeHeader, out var rangeHeaderValue) &&
-                        rangeHeaderValue.Ranges.FirstOrDefault() is RangeItemHeaderValue range)
+                    var totalLength = stream.Length;
+                    // support for range requests
+                    if (context.Request.Headers.ContainsKey("Range"))
                     {
-                        long start = range.From ?? 0;
-                        long end = range.To ?? (totalLength - 1);
+                        // Example: "Range: bytes=1000-"
+                        var rangeHeader = context.Request.Headers["Range"].ToString();
 
-                        if (start >= totalLength || end >= totalLength || start > end)
+                        if (RangeHeaderValue.TryParse(rangeHeader, out var rangeHeaderValue) &&
+                            rangeHeaderValue.Ranges.FirstOrDefault() is RangeItemHeaderValue range)
                         {
-                            context.Response.StatusCode = StatusCodes.Status416RangeNotSatisfiable;
-                            context.Response.Headers["Content-Range"] = $"bytes */{totalLength}";
+                            long start = range.From ?? 0;
+                            long end = range.To ?? (totalLength - 1);
+
+                            if (start >= totalLength || end >= totalLength || start > end)
+                            {
+                                context.Response.StatusCode = StatusCodes.Status416RangeNotSatisfiable;
+                                context.Response.Headers["Content-Range"] = $"bytes */{totalLength}";
+                                return;
+                            }
+
+                            long contentLength = end - start + 1;
+
+                            context.Response.StatusCode = StatusCodes.Status206PartialContent;
+                            context.Response.Headers["Content-Range"] = $"bytes {start}-{end}/{totalLength}";
+                            context.Response.ContentLength = contentLength;
+
+                            stream.Seek(start, SeekOrigin.Begin);
+                            await stream.CopyToAsync(context.Response.Body, (int)contentLength, context.RequestAborted);
                             return;
                         }
-
-                        long contentLength = end - start + 1;
-
-                        context.Response.StatusCode = StatusCodes.Status206PartialContent;
-                        context.Response.Headers["Content-Range"] = $"bytes {start}-{end}/{totalLength}";
-                        context.Response.ContentLength = contentLength;
-
-                        stream.Seek(start, SeekOrigin.Begin);
-                        await stream.CopyToAsync(context.Response.Body, (int)contentLength, context.RequestAborted);
-                        return;
                     }
-                }
-                else {
-                    var fileName = context.Request.Query["fileName"].ToString();
-
-                    if (string.IsNullOrEmpty(fileName))
+                    else
                     {
-                        fileName = Path.GetFileName(state.DataValue.FileName);
+                        context.Response.Headers.Append("Content-Disposition", $"attachment; filename=\"{fileName}\"");
                     }
-                    context.Response.Headers.Append("Content-Disposition", $"attachment; filename=\"{fileName}\"");
-                }
 
-                // if no range is specified, send the whole file
-                context.Response.StatusCode = StatusCodes.Status200OK;
-                context.Response.ContentLength = totalLength;
-                
-                await stream.CopyToAsync(context.Response.Body, context.RequestAborted);
+                    // if no range is specified, send the whole file
+                    context.Response.StatusCode = StatusCodes.Status200OK;
+                    context.Response.ContentLength = totalLength;
+
+                    await stream.CopyToAsync(context.Response.Body, context.RequestAborted);
+                }
             }
             catch (TaskCanceledException) { }
             catch (OperationCanceledException) { }
