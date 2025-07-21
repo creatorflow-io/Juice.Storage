@@ -10,7 +10,7 @@ namespace Juice.Storage
     internal class DefaultDownloadManager<TFile> : IDownloadManager
          where TFile : class, IFile
     {
-        private readonly IFileRepository<TFile> _fileRepository;
+        private readonly IFileRepository<TFile>? _fileRepository;
         private IStorage _storage;
         private IStorageResolver _storageResolver;
         private IAuthorizationService? _authorizationService;
@@ -18,11 +18,12 @@ namespace Juice.Storage
 
         private readonly IOptionsSnapshot<DownloadOptions> _optionsSnapshot;
 
-        public DefaultDownloadManager(IFileRepository<TFile> fileRepository, IStorage storage,
+        public DefaultDownloadManager(IStorage storage,
             IStorageResolver storageResolver,
             IOptionsSnapshot<DownloadOptions> optionsSnapshot,
             IHttpContextAccessor httpContextAccessor,
-            IAuthorizationService? authorizationService = default)
+            IAuthorizationService? authorizationService = default,
+            IFileRepository<TFile>? fileRepository = default)
         {
             _fileRepository = fileRepository;
             _storage = storage;
@@ -33,6 +34,10 @@ namespace Juice.Storage
         }
         public async Task<IOperationResult<(Stream Stream, string FileName)>> GetStreamAsync(Guid id, CancellationToken token)
         {
+            if (_fileRepository == null)
+            {
+                return OperationResult.Failed<(Stream, string)>("File repository is not configured. Please use file path to download file.");
+            }
             var file = await _fileRepository.GetAsync(_storageResolver.Identity, id, token);
             if (file == null)
             {
