@@ -409,9 +409,9 @@ namespace Juice.Storage.Middleware
                         stream = section.Body;
                         var (completed, preserved, size) = await uploadManager.UploadAsync(uploadId.Value, stream, offset, context.RequestAborted);
                         context.Response.StatusCode = StatusCodes.Status200OK;
-                        context.Response.Headers.Add("x-offset", size.ToString());
-                        context.Response.Headers.Add("x-completed", completed.ToString());
-                        context.Response.Headers.Add("x-date-modified-preserved", preserved.ToString());
+                        context.Response.Headers.Append("x-offset", size.ToString());
+                        context.Response.Headers.Append("x-completed", completed.ToString());
+                        context.Response.Headers.Append("x-date-modified-preserved", preserved.ToString());
                         if (configuration != null)
                         {
                             await context.Response.WriteAsJsonAsync(configuration, new JsonSerializerOptions
@@ -505,7 +505,7 @@ namespace Juice.Storage.Middleware
 
                 var preserved = await uploadManager.CompleteAsync(uploadId, context.RequestAborted);
 
-                context.Response.Headers.Add("x-date-modified-preserved", preserved.ToString());
+                context.Response.Headers.Append("x-date-modified-preserved", preserved.ToString());
 
                 context.Response.StatusCode = StatusCodes.Status204NoContent;
                 return;

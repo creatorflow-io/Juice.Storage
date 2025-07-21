@@ -3,10 +3,11 @@ using Newtonsoft.Json.Linq;
 
 namespace Juice.Storage.InMemory
 {
-    internal class InMemoryUploadRepository : IUploadRepository<UploadFileInfo>
+    internal class InMemoryUploadRepository<TFile> : IUploadRepository<TFile>
+        where TFile : class, IFile
     {
-        private readonly ConcurrentDictionary<string, List<UploadFileInfo>> _uploads
-            = new ConcurrentDictionary<string, List<UploadFileInfo>>();
+        private readonly ConcurrentDictionary<string, List<TFile>> _uploads
+            = new ConcurrentDictionary<string, List<TFile>>();
 
         public Task AbortAsync(string storageIdentity, Guid uploadId, bool fileDeleted)
         {
@@ -19,13 +20,12 @@ namespace Juice.Storage.InMemory
             return Task.CompletedTask;
         }
 
-        public Task AddAsync(string storageIdentity, UploadFileInfo item)
+        public Task AddAsync(string storageIdentity, TFile item)
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
-            item.StartedTime = DateTimeOffset.Now;
             if (!_uploads.ContainsKey(storageIdentity))
             {
-                _uploads.TryAdd(storageIdentity, new List<UploadFileInfo>());
+                _uploads.TryAdd(storageIdentity, new List<TFile>());
             }
             _uploads[storageIdentity].Add(item);
             return Task.CompletedTask;
@@ -38,16 +38,16 @@ namespace Juice.Storage.InMemory
             return Task.FromResult(_uploads.ContainsKey(storageIdentity) && _uploads[storageIdentity].Any(u => u.Id == uploadId));
         }
 
-        public Task<IEnumerable<UploadFileInfo>> FindAllForCleanupAsync(string storageIdentity, DateTimeOffset beforeDate, CancellationToken token)
+        public Task<IEnumerable<TFile>> FindAllForCleanupAsync(string storageIdentity, DateTimeOffset beforeDate, CancellationToken token)
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
             return Task.FromResult(_uploads.ContainsKey(storageIdentity)
-                ? _uploads[storageIdentity].Where(u => u.StartedTime < beforeDate)
+                ? _uploads[storageIdentity].Where(u => u.CreatedDate < beforeDate)
                     .ToArray().AsEnumerable() // to avoid "Collection was modified; enumeration operation may not execute." error
-                : Array.Empty<UploadFileInfo>());
+                : Array.Empty<TFile>());
         }
 
-        public Task<UploadFileInfo> GetAsync(string storageIdentity, Guid uploadId, CancellationToken token)
+        public Task<TFile> GetAsync(string storageIdentity, Guid uploadId, CancellationToken token)
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
             if (uploadId == Guid.Empty) { throw new ArgumentNullException(nameof(uploadId)); }
@@ -80,7 +80,7 @@ namespace Juice.Storage.InMemory
         public string? OriginalName { get; init; }
         public string? CorrelationId { get; set; }
         public JObject? Metadata { get; set; }
-        public DateTimeOffset StartedTime { get; set; }
+        public DateTimeOffset CreatedDate { get; init; } = DateTimeOffset.Now;
         public bool DateModifiedPreserved { get; set; }
     }
 }

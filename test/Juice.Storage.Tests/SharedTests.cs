@@ -139,8 +139,11 @@ namespace Juice.Storage.Tests
                         testOutput.WriteLine("Buffer size {0}", bufferSize);
 
                         var buffer = new byte[bufferSize];
-                        await istream.ReadAsync(buffer, 0, bufferSize);
-
+#if NET6_0
+                        await istream.ReadAsync(buffer.AsMemory(0, bufferSize));
+#elif NET8_0_OR_GREATER
+                        await istream.ReadExactlyAsync(buffer.AsMemory(0, bufferSize), default);
+#endif
                         using var memStream = new MemoryStream(buffer);
 
                         await uploadManager.UploadAsync(uploadId, memStream, offset, default);
@@ -188,7 +191,7 @@ namespace Juice.Storage.Tests
             return result.ToString();
         }
 
-        #endregion
+#endregion
 
     }
 }

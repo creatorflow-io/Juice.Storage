@@ -54,13 +54,13 @@ namespace Juice.Storage.Utilities
             // UTF-7 is insecure and shouldn't be honored. UTF-8 succeeds in 
             // most cases.
 #pragma warning disable SYSLIB0001 // Type or member is obsolete
-            if (!hasMediaTypeHeader || Encoding.UTF7.Equals(mediaType.Encoding))
+            if (!hasMediaTypeHeader || Encoding.UTF7.Equals(mediaType?.Encoding))
             {
                 return Encoding.UTF8;
             }
 #pragma warning restore SYSLIB0001 // Type or member is obsolete
 
-            return mediaType.Encoding;
+            return mediaType?.Encoding;
         }
     }
 }

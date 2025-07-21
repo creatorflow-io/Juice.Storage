@@ -13,5 +13,6 @@ namespace Juice.Storage
         public JObject? Metadata { get; set; }
         public DateTimeOffset? LastModified { get; set; }
         public bool DateModifiedPreserved { get; set; }
+        public DateTimeOffset CreatedDate { get; init; }
     }
 }

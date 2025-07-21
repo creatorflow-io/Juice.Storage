@@ -3,29 +3,32 @@ using Juice.Storage.Abstractions;
 using Juice.Storage.BackgroundTasks;
 using Juice.Storage.InMemory;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
     public static class InMemoryStorageServiceCollectionExtensions
     {
-        public static IServiceCollection AddInMemoryUploadManager(this IServiceCollection services, IConfiguration configuration, Action<UploadOptions>? configure = default)
+        public static IServiceCollection AddInMemoryUploadManager<T>(this IServiceCollection services, IConfiguration configuration, Action<UploadOptions>? configure = default)
+            where T : class, IFile, new()
         {
             services.Configure<InMemoryStorageOptions>(configuration);
             services.AddScoped<IStorageRepository, InMemoryStorageRepository>();
             if (configure != null)
             {
-                services.AddDefaultUploadManager<UploadFileInfo>(configure);
+                services.AddDefaultUploadManager<T>(configure);
             }
             else
             {
-                services.AddDefaultUploadManager<UploadFileInfo>(configuration);
+                services.AddDefaultUploadManager<T>(configuration);
             }
-            services.AddSingleton<IUploadRepository<UploadFileInfo>, InMemoryUploadRepository>();
+            services.AddSingleton<IUploadRepository<T>, InMemoryUploadRepository<T>>();
 
             return services;
         }
+
+        public static IServiceCollection AddInMemoryUploadManager(this IServiceCollection services, IConfiguration configuration, Action<UploadOptions>? configure = default)
+            => services.AddInMemoryUploadManager<UploadFileInfo>(configuration, configure);
+
 
         public static IServiceCollection AddInMemoryStorageMaintainServices(this IServiceCollection services,
             IConfiguration configuration, string[] identities,
