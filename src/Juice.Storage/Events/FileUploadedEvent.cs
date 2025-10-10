@@ -1,4 +1,4 @@
-﻿using MediatR;
+﻿using Juice.MediatR;
 using Newtonsoft.Json.Linq;
 
 namespace Juice.Storage.Events

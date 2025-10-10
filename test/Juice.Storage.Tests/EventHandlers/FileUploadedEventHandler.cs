@@ -1,7 +1,7 @@
 ﻿using System.Threading;
 using System.Threading.Tasks;
 using Juice.Storage.Events;
-using MediatR;
+using Juice.MediatR;
 using Microsoft.Extensions.Logging;
 
 namespace Juice.Storage.Tests.EventHandlers
@@ -13,10 +13,10 @@ namespace Juice.Storage.Tests.EventHandlers
         {
             _logger = logger;
         }
-        public Task Handle(FileUploadedEvent notification, CancellationToken cancellationToken)
+        public ValueTask Handle(FileUploadedEvent notification, CancellationToken cancellationToken)
         {
             _logger.LogInformation($"File uploaded: {notification.Name}");
-            return Task.CompletedTask;
+            return ValueTask.CompletedTask;
         }
     }
 }

@@ -3,7 +3,7 @@ using Juice.Storage.Abstractions;
 using Juice.Storage.Authorization;
 using Juice.Storage.Dto;
 using Juice.Storage.Events;
-using MediatR;
+using Juice.MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;

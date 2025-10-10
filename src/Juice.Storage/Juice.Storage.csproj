@@ -25,6 +25,6 @@
     <ItemGroup>
         <PackageReference Include="Juice" Version="$(JuiceVersion)" />
         <PackageReference Include="Newtonsoft.Json" Version="*" />
-        <PackageReference Include="MediatR" Version="$(MediatRVersion)" />
+        <PackageReference Include="Juice.MediatR" Version="$(JuiceVersion)" />
     </ItemGroup>
 </Project>
