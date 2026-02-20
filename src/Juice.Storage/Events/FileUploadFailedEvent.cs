@@ -2,7 +2,7 @@
 
 namespace Juice.Storage.Events
 {
-    public class FileUploadFailedEvent : INotification
+    public record FileUploadFailedEvent : MessageBase, INotification
     {
         public FileUploadFailedEvent(string name, string? correlationId, string? userName)
         {

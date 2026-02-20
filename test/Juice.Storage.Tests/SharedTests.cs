@@ -17,7 +17,7 @@ namespace Juice.Storage.Tests
         #region StorageProvider
         public static async Task File_should_create_Async(IStorageProvider storage)
         {
-            var generator = new DefaultStringIdGenerator();
+            var generator = StringIdGenerator.Instance;
             var file = @"Test\" + generator.GenerateRandomId(26) + ".txt";
 
             var createdFile = await storage.CreateAsync(file, new CreateFileOptions { FileExistsBehavior = FileExistsBehavior.RaiseError }, default);
@@ -48,7 +48,7 @@ namespace Juice.Storage.Tests
 
         public static async Task File_create_should_error_Async(IStorageProvider storage)
         {
-            var generator = new DefaultStringIdGenerator();
+            var generator = StringIdGenerator.Instance;
             var file = generator.GenerateRandomId(26) + ".txt";
             var createdFile = await storage.CreateAsync(file, new CreateFileOptions { FileExistsBehavior = FileExistsBehavior.RaiseError }, default);
 
@@ -65,7 +65,7 @@ namespace Juice.Storage.Tests
 
         public static async Task File_create_should_add_copy_number_Async(IStorageProvider storage)
         {
-            var generator = new DefaultStringIdGenerator();
+            var generator = StringIdGenerator.Instance;
             var name = generator.GenerateRandomId(26);
             var file = name + ".txt";
             var file1 = name + "(1).txt";
@@ -111,7 +111,7 @@ namespace Juice.Storage.Tests
             if (file.Exists)
             {
 
-                var generator = new DefaultStringIdGenerator();
+                var generator = StringIdGenerator.Instance;
                 var fileName = @"Test\" + generator.GenerateRandomId(26) + ".zzz";
                 string? contentType = default;
                 string? correlationId = default;

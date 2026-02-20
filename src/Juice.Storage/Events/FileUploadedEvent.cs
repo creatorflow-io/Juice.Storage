@@ -3,7 +3,7 @@ using Newtonsoft.Json.Linq;
 
 namespace Juice.Storage.Events
 {
-    public class FileUploadedEvent : INotification
+    public record FileUploadedEvent : MessageBase, INotification
     {
         public FileUploadedEvent(Guid id, string name, string? contentType, long length, string? correlationId = default, JObject? metadata = default, string? userName = null)
         {

@@ -2,7 +2,7 @@
 
 namespace Juice.Storage.Events
 {
-    public record FileUploadResumedEvent : INotification
+    public record FileUploadResumedEvent : MessageBase, INotification
     {
         public FileUploadResumedEvent
             (Guid id, string name, long position, string? correlationId = default, string? userName = null)

@@ -81,7 +81,7 @@ namespace Juice.Storage.Tests
         [IgnoreOnCIFact(DisplayName = "Network share access with credential")]
         public async Task File_create_on_network_Async()
         {
-            var generator = new DefaultStringIdGenerator();
+            var generator = StringIdGenerator.Instance;
             var file = @"Test\" + generator.GenerateRandomId(26) + ".txt";
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
                 .Configure(new StorageEndpoint(@"\\127.0.0.1\Storage\XUnit", @"\\127.0.0.1", "storage", "storage", Protocol.Smb));
@@ -96,7 +96,7 @@ namespace Juice.Storage.Tests
         [IgnoreOnCIFact(DisplayName = "Network share is inaccessible")]
         public async Task File_create_network_inaccessible_Async()
         {
-            var generator = new DefaultStringIdGenerator();
+            var generator = StringIdGenerator.Instance;
             var file = @"Test\" + generator.GenerateRandomId(26) + ".txt";
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
                 .Configure(new StorageEndpoint(@"\\test.juice.lan", default));
