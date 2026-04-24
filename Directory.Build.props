@@ -10,13 +10,13 @@
     <PackageIconUrl>https://avatars.githubusercontent.com/u/107674950</PackageIconUrl>
     <RepositoryUrl>https://github.com/creatorflow-io/Juice.Storage</RepositoryUrl>
 
-    <VersionPrefix>9.0.0</VersionPrefix>
+    <VersionPrefix>10.0.0</VersionPrefix>
     <VersionSuffix>local.$([System.DateTime]::Now.ToString(`yyyyMMdd`)).1</VersionSuffix>
   </PropertyGroup>
 
   <PropertyGroup Label="Versioning">
     <LibraryTargetFramework>netstandard2.1</LibraryTargetFramework>
-    <AppTargetFramework>net6.0;net8.0;net9.0</AppTargetFramework>
+    <AppTargetFramework>net6.0;net8.0;net9.0;net10.0</AppTargetFramework>
     <SignalRVersion>8.0.*</SignalRVersion>
     <GrpcVersion>2.66.*</GrpcVersion>
     <ProtobufVersion>3.28.*</ProtobufVersion>
@@ -27,10 +27,16 @@
     <XUnitVersion>2.9.*</XUnitVersion>
     <TestSdk>17.11.*</TestSdk>
     <JuiceRefSuffix Condition="'$(JuiceRefSuffix)' == '' And '$(CI)' == ''">-alpha.*</JuiceRefSuffix>
-    <JuiceVersion>9.0.*$(JuiceRefSuffix)</JuiceVersion>
-    <JuiceMeasurement>9.0.*$(JuiceRefSuffix)</JuiceMeasurement>
+    <JuiceVersion>10.0.*$(JuiceRefSuffix)</JuiceVersion>
+    <JuiceMeasurement>10.0.*$(JuiceRefSuffix)</JuiceMeasurement>
   </PropertyGroup>
 
+  <PropertyGroup Label="Versioning" Condition="'$(TargetFramework)' == 'net10.0'">
+    <MicrosoftExtensionsVersion>10.0.*</MicrosoftExtensionsVersion>
+    <EFVersion>10.0.*</EFVersion>
+    <NpgsqlVersion>10.0.*</NpgsqlVersion>
+    <MvcTesting>$(MicrosoftExtensionsVersion)</MvcTesting>
+  </PropertyGroup>
 
   <PropertyGroup Label="Versioning" Condition="'$(TargetFramework)' == 'net9.0'">
     <MicrosoftExtensionsVersion>9.0.*</MicrosoftExtensionsVersion>
