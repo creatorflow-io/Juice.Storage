@@ -8,7 +8,6 @@ using Juice.Storage.Abstractions;
 using Juice.Storage.Dto;
 using Juice.Storage.Extensions;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Juice.Storage.Tests
 {
