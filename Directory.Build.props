@@ -17,6 +17,7 @@
   <PropertyGroup Label="Versioning">
     <LibraryTargetFramework>netstandard2.1</LibraryTargetFramework>
     <AppTargetFramework>net6.0;net8.0;net9.0;net10.0</AppTargetFramework>
+    <AppTestTargetFramework>net8.0;net9.0;net10.0</AppTestTargetFramework>
     <SignalRVersion>8.0.*</SignalRVersion>
     <GrpcVersion>2.66.*</GrpcVersion>
     <ProtobufVersion>3.28.*</ProtobufVersion>

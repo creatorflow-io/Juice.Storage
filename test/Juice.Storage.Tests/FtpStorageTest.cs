@@ -5,6 +5,7 @@ using Juice.Storage.Abstractions;
 using Juice.XUnit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Xunit;
 
 namespace Juice.Storage.Tests
 {
