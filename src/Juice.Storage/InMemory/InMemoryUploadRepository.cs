@@ -6,8 +6,9 @@ namespace Juice.Storage.InMemory
     internal class InMemoryUploadRepository<TFile> : IUploadRepository<TFile>
         where TFile : class, IFile
     {
-        private readonly ConcurrentDictionary<string, List<TFile>> _uploads
-            = new ConcurrentDictionary<string, List<TFile>>();
+        // accessed by concurrent requests: storage identity -> upload id -> file
+        private readonly ConcurrentDictionary<string, ConcurrentDictionary<Guid, TFile>> _uploads
+            = new ConcurrentDictionary<string, ConcurrentDictionary<Guid, TFile>>();
 
         public Task AbortAsync(string storageIdentity, Guid uploadId, bool fileDeleted)
         {
@@ -15,19 +16,12 @@ namespace Juice.Storage.InMemory
         }
 
         public Task CompleteAsync(string storageIdentity, Guid uploadId, CancellationToken token)
-        {
-            _uploads[storageIdentity].RemoveAll(u => u.Id == uploadId);
-            return Task.CompletedTask;
-        }
+            => RemoveAsync(storageIdentity, uploadId, token);
 
         public Task AddAsync(string storageIdentity, TFile item)
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
-            if (!_uploads.ContainsKey(storageIdentity))
-            {
-                _uploads.TryAdd(storageIdentity, new List<TFile>());
-            }
-            _uploads[storageIdentity].Add(item);
+            _uploads.GetOrAdd(storageIdentity, _ => new ConcurrentDictionary<Guid, TFile>())[item.Id] = item;
             return Task.CompletedTask;
         }
 
@@ -35,15 +29,14 @@ namespace Juice.Storage.InMemory
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
             if (uploadId == Guid.Empty) { throw new ArgumentNullException(nameof(uploadId)); }
-            return Task.FromResult(_uploads.ContainsKey(storageIdentity) && _uploads[storageIdentity].Any(u => u.Id == uploadId));
+            return Task.FromResult(_uploads.TryGetValue(storageIdentity, out var uploads) && uploads.ContainsKey(uploadId));
         }
 
         public Task<IEnumerable<TFile>> FindAllForCleanupAsync(string storageIdentity, DateTimeOffset beforeDate, CancellationToken token)
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
-            return Task.FromResult(_uploads.ContainsKey(storageIdentity)
-                ? _uploads[storageIdentity].Where(u => u.CreatedDate < beforeDate)
-                    .ToArray().AsEnumerable() // to avoid "Collection was modified; enumeration operation may not execute." error
+            return Task.FromResult(_uploads.TryGetValue(storageIdentity, out var uploads)
+                ? uploads.Values.Where(u => u.CreatedDate < beforeDate).ToArray().AsEnumerable()
                 : Array.Empty<TFile>());
         }
 
@@ -51,20 +44,20 @@ namespace Juice.Storage.InMemory
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
             if (uploadId == Guid.Empty) { throw new ArgumentNullException(nameof(uploadId)); }
-            if (_uploads.ContainsKey(storageIdentity))
+            if (_uploads.TryGetValue(storageIdentity, out var uploads) && uploads.TryGetValue(uploadId, out var file))
             {
-                return Task.FromResult(_uploads[storageIdentity].First(u => u.Id == uploadId));
+                return Task.FromResult(file);
             }
-            throw new KeyNotFoundException();
+            throw new KeyNotFoundException($"Upload {uploadId} not found in {storageIdentity}.");
         }
 
         public Task RemoveAsync(string storageIdentity, Guid uploadId, CancellationToken token)
         {
             if (storageIdentity == null) { throw new ArgumentNullException(nameof(storageIdentity)); }
             if (uploadId == Guid.Empty) { throw new ArgumentNullException(nameof(uploadId)); }
-            if (_uploads.ContainsKey(storageIdentity))
+            if (_uploads.TryGetValue(storageIdentity, out var uploads))
             {
-                _uploads[storageIdentity].RemoveAll(u => u.Id == uploadId);
+                uploads.TryRemove(uploadId, out _);
             }
             return Task.CompletedTask;
         }

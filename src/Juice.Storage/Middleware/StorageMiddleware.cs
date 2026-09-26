@@ -18,8 +18,6 @@ namespace Juice.Storage.Middleware
     {
         private RequestDelegate _next;
         private StorageMiddlewareOptions _options;
-
-        private IStorageResolver? _resolver;
         public StorageMiddleware(RequestDelegate next,
             StorageMiddlewareOptions options)
         {
@@ -39,14 +37,15 @@ namespace Juice.Storage.Middleware
                 var match = Regex.Match(path, "^(?<identity>\\/[\\w]+)(?<action>\\/[\\w]+)");
                 if (match.Success)
                 {
-                    _resolver = context.RequestServices.GetRequiredService<IStorageResolver>();
-                    using (_resolver)
+                    // the middleware is shared by all requests, the resolver must stay request scoped
+                    var resolver = context.RequestServices.GetRequiredService<IStorageResolver>();
+                    using (resolver)
                     {
                         var identity = match.Groups["identity"].ToString();
                         var action = match.Groups["action"].ToString();
 
-                        await _resolver.TryResolveAsync(identity);
-                        if (_resolver.IsResolved)
+                        await resolver.TryResolveAsync(identity);
+                        if (resolver.IsResolved)
                         {
                             switch (action)
                             {
@@ -66,7 +65,7 @@ namespace Juice.Storage.Middleware
                                     await InvokeFailureAsync(context);
                                     break;
                                 case "/file":
-                                    await InvokeDownloadAsync(context);
+                                    await InvokeDownloadAsync(context, resolver);
                                     break;
                                 default:
                                     if (_options.RewritePath && context.Request.Path.StartsWithSegments(identity, out var matched, out var newPath))
@@ -539,7 +538,7 @@ namespace Juice.Storage.Middleware
 
         #region Download
 
-        private async Task InvokeDownloadAsync(HttpContext context)
+        private async Task InvokeDownloadAsync(HttpContext context, IStorageResolver resolver)
         {
             if (context.Request.Method != HttpMethod.Get.Method)
             {
@@ -548,13 +547,13 @@ namespace Juice.Storage.Middleware
             }
             try
             {
-                if (_resolver == null || !_resolver.IsResolved)
+                if (!resolver.IsResolved)
                 {
                     context.Response.StatusCode = StatusCodes.Status400BadRequest;
                     await context.Response.WriteAsync("Storage is not resolved");
                     return;
                 }
-                var path = _resolver.Identity + "/file";
+                var path = resolver.Identity + "/file";
 
                 var filePath = context.Request.Path.ToString().Substring(path.Length).TrimStart('/');
 
@@ -649,8 +648,16 @@ namespace Juice.Storage.Middleware
                             context.Response.Headers["Content-Range"] = $"bytes {start}-{end}/{totalLength}";
                             context.Response.ContentLength = contentLength;
 
-                            stream.Seek(start, SeekOrigin.Begin);
-                            await stream.CopyToAsync(context.Response.Body, (int)contentLength, context.RequestAborted);
+                            if (stream.CanSeek)
+                            {
+                                stream.Seek(start, SeekOrigin.Begin);
+                            }
+                            else
+                            {
+                                // network streams (FTP) are forward only
+                                await CopyRangeAsync(stream, Stream.Null, start, context.RequestAborted);
+                            }
+                            await CopyRangeAsync(stream, context.Response.Body, contentLength, context.RequestAborted);
                             return;
                         }
                     }
@@ -677,6 +684,25 @@ namespace Juice.Storage.Middleware
             {
                 context.Response.StatusCode = StatusCodes.Status500InternalServerError;
                 await context.Response.WriteAsync(ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Copy exactly <paramref name="length"/> bytes from the current position of <paramref name="source"/>.
+        /// </summary>
+        private static async Task CopyRangeAsync(Stream source, Stream destination, long length, CancellationToken token)
+        {
+            var buffer = new byte[(int)Math.Min(81920, length)];
+            var remaining = length;
+            while (remaining > 0)
+            {
+                var read = await source.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, remaining)), token);
+                if (read == 0)
+                {
+                    break;
+                }
+                await destination.WriteAsync(buffer.AsMemory(0, read), token);
+                remaining -= read;
             }
         }
 

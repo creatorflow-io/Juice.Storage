@@ -71,7 +71,7 @@ namespace Juice.Storage.BackgroundTasks
                         _logger.LogInformation("No uploads to cleanup");
                     }
 
-                    await Task.Delay(options.Value.Interval);
+                    await DelayAsync(options.Value.Interval, stoppingToken);
                 }
                 catch (TaskCanceledException)
                 {
@@ -80,12 +80,27 @@ namespace Juice.Storage.BackgroundTasks
                 catch (Exception ex)
                 {
                     _logger.LogError("An error occurred while processing timer. {Message}", ex.Message ?? "");
-                    await Task.Delay(TimeSpan.FromMinutes(10));
+                    await DelayAsync(TimeSpan.FromMinutes(10), stoppingToken);
                 }
                 if (stoppingToken.IsCancellationRequested)
                 {
-                    _logger.LogError("CleanupTimedoutUploadService is shutting down");
+                    _logger.LogInformation("CleanupTimedoutUploadService is shutting down");
                 }
+            }
+        }
+
+        /// <summary>
+        /// Wait for the next run, returning immediately when the application is stopping.
+        /// </summary>
+        private static async Task DelayAsync(TimeSpan delay, CancellationToken stoppingToken)
+        {
+            try
+            {
+                await Task.Delay(delay, stoppingToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // stopping
             }
         }
     }

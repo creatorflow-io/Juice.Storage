@@ -61,3 +61,6 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+# e2e scripts and files run inside Linux containers
+test/e2e/** text eol=lf

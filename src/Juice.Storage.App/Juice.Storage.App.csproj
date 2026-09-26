@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>a29db157-a9bf-4478-a827-019062e02f59</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    <DockerfileContext>..\..\..\..</DockerfileContext>
+    <DockerfileContext>..\..</DockerfileContext>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,6 +24,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Juice.Storage.Local\Juice.Storage.Local.csproj" />
+    <ProjectReference Include="..\Juice.Storage.Local.Linux\Juice.Storage.Local.Linux.csproj" />
+    <ProjectReference Include="..\Juice.Storage.Local.Windows\Juice.Storage.Local.Windows.csproj" />
     <ProjectReference Include="..\Juice.Storage\Juice.Storage.csproj" />
   </ItemGroup>
 

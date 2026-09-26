@@ -42,8 +42,11 @@ Juice.Storage is a **pluggable, multi-protocol file storage library** for ASP.NE
 |---|---|
 | `Juice.Storage.Abstractions` | Core interfaces: `IStorage`, `IStorageProvider`, `IStorageResolver`, `StorageEndpoint` |
 | `Juice.Storage` | Upload/download managers, middleware, events, in-memory impls |
-| `Juice.Storage.Local` | `LocalStorageProvider` (LocalDisk/SMB) + `FTPStorageProvider` |
+| `Juice.Storage.Local` | `LocalStorageProvider` (LocalDisk/SMB) + `FTPStorageProvider`, `INetworkConnectionFactory` |
+| `Juice.Storage.Local.Windows` | SMB connections with `WNetAddConnection2` (`AddWindowsNetworkConnection()`) |
+| `Juice.Storage.Local.Linux` | SMB connections with `mount -t cifs` (`AddLinuxNetworkConnection()`) |
 | `Juice.Storage.App` | Sample app — see `src/Juice.Storage.App/Program.cs` |
+| `test/e2e` | Linux container end-to-end suite (LocalDisk, SMB via CIFS mount, FTP): `bash test/e2e/run.sh` |
 
 **Key dependencies:**
 - `Polly 8.4.1` — retry policy in LocalStorageProvider
@@ -231,7 +234,7 @@ string Uri        // e.g. "D:\\Assets" or "ftp://192.168.1.10/uploads"
 Protocol Protocol // LocalDisk | Smb | Ftp | VirtualDirectory
 string? Identity  // username (for SMB/FTP)
 string? Password  // password
-string? BasePath  // local mount point for network URIs
+string? BasePath  // Windows: network resource to authenticate to (\\server or \\server\share)
 ```
 
 ### LocalStorageProvider
@@ -239,7 +242,12 @@ string? BasePath  // local mount point for network URIs
 - Handles `Smb`, `LocalDisk`, `VirtualDirectory`
 - Auto-creates directories
 - Uses Polly: 3 retries with exponential back-off
-- Connects to SMB shares via `NetworkConnection` (Win32 WNetAddConnection2)
+- File paths are normalized: `\` and `/` are both separators, results use `/`; `..` segments and drive letters throw `ArgumentException`, leading `/` is relative to the endpoint
+- Network share Uris (`\\server\share\dir`, `smb://server/share/dir`) go through `INetworkConnectionFactory`:
+  - Windows: `AddWindowsNetworkConnection()` authenticates with the endpoint credentials (WNetAddConnection2). Without it UNC paths use the process identity.
+  - Linux: `AddLinuxNetworkConnection(o => ...)` mounts `//server/share` at `{MountRoot}/{server}/{share}` (default `/mnt/juice-storage`) with a 0600 temp credentials file. Needs cifs-utils and root / CAP_SYS_ADMIN / `UseSudo`. Shares already mounted there (fstab) are used without credentials; mounts are released when the app stops.
+  - Without a factory, a network Uri throws `PlatformNotSupportedException` on Linux. Alternative: mount the share yourself and use the mount path as a `LocalDisk` Uri.
+- File names are case-sensitive on Linux (`a.txt` ≠ `A.txt`)
 
 ### FTPStorageProvider
 
@@ -256,6 +264,8 @@ string? BasePath  // local mount point for network URIs
 // ---- Required ----
 services.AddStorage();                    // IStorageProviderFactory, IStorageResolver
 services.AddLocalStorageProviders();      // LocalStorageProvider + FTPStorageProvider
+if (OperatingSystem.IsWindows()) services.AddWindowsNetworkConnection();  // SMB credentials (Juice.Storage.Local.Windows)
+else services.AddLinuxNetworkConnection();                               // SMB credentials (Juice.Storage.Local.Linux)
 
 // ---- Upload ----
 // Option A: production (bring your own IUploadRepository)
@@ -280,6 +290,28 @@ services.AddScoped<IStorageRepository, MyStorageRepository>();
 // or in-memory (reads from appsettings Juice:Storage):
 services.AddInMemoryStorageRepository(config);
 ```
+
+### Storage builder
+
+`services.AddStorage(Action<IStorageBuilder>)` calls `AddStorage()` and exposes every extension above on `IStorageBuilder`
+(same names, chainable). The `IServiceCollection` extensions stay available.
+
+```csharp
+services.AddStorage(storage => storage
+    .AddLocalStorageProviders()                  // or .AddLocalDiskProvider() / .AddFtpProvider()
+    .AddWindowsNetworkConnection()               // registered on Windows only
+    .AddLinuxNetworkConnection(o => o.MountRoot = "/mnt/juice-storage")  // registered on Linux only
+    .AddDefaultUploadManager<TFile>(config)
+    .AddDefaultDownloadManager<TFile>(config)
+    .AddStorageMaintainServices<TFile>(config, ["/storage"])
+    .AddStorageRepository<MyStorageRepository>() // replaces any IStorageRepository
+    .AddStorageProvider<MyCloudProvider>());     // custom IStorageProvider
+```
+
+- Providers are added with `TryAddEnumerable`, so repeated calls do not register duplicates.
+- The builder network connection methods are OS-conditional so one chain works cross-platform;
+  the `IServiceCollection` versions register unconditionally.
+- Package authors extend `IStorageBuilder` (namespace `Juice.Storage.Abstractions`) with their own extension methods.
 
 ---
 

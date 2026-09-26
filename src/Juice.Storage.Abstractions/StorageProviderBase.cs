@@ -6,6 +6,7 @@ namespace Juice.Storage.Abstractions
     public abstract class StorageProviderBase : IStorageProvider
     {
         protected string _copyNumberPattern = @"(?<n>[^\n]+)\((?<cn>[0-9]+)\)[\s]*\.[\S]+$";
+        private static readonly char[] _pathSeparators = new[] { '/', '\\' };
         public NetworkCredential? Credential { get; protected set; }
         public StorageEndpoint? StorageEndpoint { get; protected set; }
         public virtual int Priority { get; protected set; }
@@ -71,10 +72,57 @@ namespace Juice.Storage.Abstractions
             return (null, Path.GetFileNameWithoutExtension(fileName));
         }
 
+        /// <summary>
+        /// Normalize a file path relative to the storage endpoint to the platform independent form "dir/sub/file.ext".
+        /// <para>Both '/' and '\' are accepted as separators; leading separators are removed.</para>
+        /// </summary>
+        /// <exception cref="ArgumentException">The path is empty, contains '..' segments or a drive letter.</exception>
+        protected virtual string NormalizePath(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+            {
+                throw new ArgumentException("File path must not be empty.", nameof(filePath));
+            }
+            var segments = new List<string>();
+            foreach (var segment in filePath.Split(_pathSeparators, StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (segment == ".")
+                {
+                    continue;
+                }
+                // "..", "...", ".. " are all resolved to a parent directory on some platforms
+                if (segment.Trim(' ', '.').Length == 0)
+                {
+                    throw new ArgumentException($"File path '{filePath}' must not contain parent directory segments.", nameof(filePath));
+                }
+                segments.Add(segment);
+            }
+            if (segments.Count == 0)
+            {
+                throw new ArgumentException("File path must not be empty.", nameof(filePath));
+            }
+            var first = segments[0];
+            if (first.Length >= 2 && first[1] == ':' && char.IsLetter(first[0]))
+            {
+                throw new ArgumentException($"File path '{filePath}' must be relative to the storage endpoint.", nameof(filePath));
+            }
+            return string.Join("/", segments);
+        }
+
+        /// <summary>
+        /// Directory part of a normalized path ("dir/sub" for "dir/sub/file.ext"), or empty string.
+        /// </summary>
+        protected static string GetDirectoryPart(string normalizedPath)
+        {
+            var index = normalizedPath.LastIndexOf('/');
+            return index > 0 ? normalizedPath.Substring(0, index) : "";
+        }
+
         protected virtual async Task<string> GetNameAscendedCopyNumberAsync(string filePath, int? length, CancellationToken token)
         {
-            var directory = Path.GetDirectoryName(filePath);
-            directory = !string.IsNullOrWhiteSpace(directory) ? directory + Path.DirectorySeparatorChar : "";
+            filePath = NormalizePath(filePath);
+            var directory = GetDirectoryPart(filePath);
+            directory = !string.IsNullOrEmpty(directory) ? directory + "/" : "";
 
             var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
             var extension = Path.GetExtension(filePath);
@@ -97,12 +145,13 @@ namespace Juice.Storage.Abstractions
 
             foreach (var version in fileVersions)
             {
-                // Check if specified file path is a copied version of an other. Ex: abc(1).xyz
+                // Take the highest copy number of the same origin name. Ex: abc(1).xyz, abc(3).xyz but not abcdef(5).xyz
                 var (ver, origin) = MatchCopyNumber(version);
-                if (ver.HasValue)
+                if (ver.HasValue && ver.Value > copyNumber
+                    && string.Equals(origin, fileNameWithoutExtension, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(Path.GetExtension(version), extension, StringComparison.OrdinalIgnoreCase))
                 {
                     copyNumber = ver.Value;
-                    fileNameWithoutExtension = origin;
                 }
             }
 

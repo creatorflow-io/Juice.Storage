@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Juice.Extensions.DependencyInjection;
 using Juice.Services;
 using Juice.Storage.Abstractions;
+using Juice.Storage.Local;
 using Juice.XUnit;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ namespace Juice.Storage.Tests
     {
         private readonly ITestOutputHelper _output;
         private readonly IServiceProvider _serviceProvider;
+        private readonly string _localRoot = Path.Combine(Path.GetTempPath(), "Juice.Storage.XUnit");
         public LocalStorageTest(ITestOutputHelper testOutput)
         {
             Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Development");
@@ -42,6 +44,14 @@ namespace Juice.Storage.Tests
 
 
                 services.AddScoped<IStorageProvider, Local.LocalStorageProvider>();
+                if (OperatingSystem.IsWindows())
+                {
+                    services.AddWindowsNetworkConnection();
+                }
+                else if (OperatingSystem.IsLinux())
+                {
+                    services.AddLinuxNetworkConnection();
+                }
 
             });
 
@@ -53,7 +63,7 @@ namespace Juice.Storage.Tests
         {
 
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
-                .Configure(new StorageEndpoint(@"C:\Workspace\Storage\XUnit", default));
+                .Configure(new StorageEndpoint(_localRoot, default));
 
             await SharedTests.File_should_create_Async(storage);
         }
@@ -63,7 +73,7 @@ namespace Juice.Storage.Tests
         {
 
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
-                 .Configure(new StorageEndpoint(@"C:\Workspace\Storage\XUnit", default));
+                 .Configure(new StorageEndpoint(_localRoot, default));
 
             await SharedTests.File_create_should_error_Async(storage);
         }
@@ -72,7 +82,7 @@ namespace Juice.Storage.Tests
         public async Task File_create_should_add_copy_number_Async()
         {
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
-                 .Configure(new StorageEndpoint(@"C:\Workspace\Storage\XUnit", default));
+                 .Configure(new StorageEndpoint(_localRoot, default));
 
             await SharedTests.File_create_should_add_copy_number_Async(storage);
         }
@@ -81,7 +91,7 @@ namespace Juice.Storage.Tests
         public async Task File_create_on_network_Async()
         {
             var generator = StringIdGenerator.Instance;
-            var file = @"Test\" + generator.GenerateRandomId(26) + ".txt";
+            var file = "Test/" + generator.GenerateRandomId(26) + ".txt";
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
                 .Configure(new StorageEndpoint(@"\\127.0.0.1\Storage\XUnit", @"\\127.0.0.1", "storage", "storage", Protocol.Smb));
             var createdFile = await storage.CreateAsync(file, new CreateFileOptions { FileExistsBehavior = FileExistsBehavior.RaiseError }, default);
@@ -95,8 +105,9 @@ namespace Juice.Storage.Tests
         [IgnoreOnCIFact(DisplayName = "Network share is inaccessible")]
         public async Task File_create_network_inaccessible_Async()
         {
+            Assert.SkipUnless(OperatingSystem.IsWindows(), "Server only UNC paths are resolved by Windows");
             var generator = StringIdGenerator.Instance;
-            var file = @"Test\" + generator.GenerateRandomId(26) + ".txt";
+            var file = "Test/" + generator.GenerateRandomId(26) + ".txt";
             var storage = _serviceProvider.GetRequiredService<IStorageProvider>()
                 .Configure(new StorageEndpoint(@"\\test.juice.lan", default));
 

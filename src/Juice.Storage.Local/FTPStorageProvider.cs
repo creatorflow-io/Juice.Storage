@@ -9,7 +9,7 @@ namespace Juice.Storage.Local
     {
         private AsyncFtpClient? _client;
 
-        public const string FtpAddressPattern = @"^(?<protocol>ftp[s]{0,1}:\/\/)*(?<host>[\w\.]+)[:]*(?<port>[0-9]+)*(?<working>[\/][^\n]+)*$";
+        public const string FtpAddressPattern = @"^(?<protocol>ftp[s]{0,1}:\/\/)*(?<host>[\w\.\-]+)[:]*(?<port>[0-9]+)*(?<working>[\/][^\n]+)*$";
 
         private string? _workingDirectory;
 
@@ -94,12 +94,13 @@ namespace Juice.Storage.Local
 
         public override async Task<string> CreateAsync(string filePath, CreateFileOptions options, CancellationToken token)
         {
+            filePath = NormalizePath(filePath);
             await EnsureConnectedAsync(token);
 
-            var directory = Path.GetDirectoryName(filePath);
-            if (!string.IsNullOrEmpty(directory) && !await _client!.DirectoryExists(directory))
+            var directory = GetDirectoryPart(filePath);
+            if (!string.IsNullOrEmpty(directory) && !await _client!.DirectoryExists(directory, token))
             {
-                await _client.CreateDirectory(directory);
+                await _client.CreateDirectory(directory, token);
             }
 
             if (!await _client!.FileExists(filePath, token))
@@ -114,7 +115,7 @@ namespace Juice.Storage.Local
                 case FileExistsBehavior.RaiseError:
                     throw new IOException("File is already exists.");
                 case FileExistsBehavior.Replace:
-                    File.Delete(filePath);
+                    await _client.DeleteFile(filePath, token);
 
                     await (await _client.OpenWrite(filePath)).DisposeAsync();
                     await _client.GetReply(token);
@@ -131,6 +132,7 @@ namespace Juice.Storage.Local
 
         public override async Task DeleteAsync(string filePath, CancellationToken token)
         {
+            filePath = NormalizePath(filePath);
             await EnsureConnectedAsync(token).ConfigureAwait(false);
             if (await _client!.FileExists(filePath, token))
             {
@@ -140,24 +142,28 @@ namespace Juice.Storage.Local
 
         public override async Task<bool> ExistsAsync(string filePath, CancellationToken token)
         {
+            filePath = NormalizePath(filePath);
             await EnsureConnectedAsync(token);
             return await _client!.FileExists(filePath, token);
         }
 
         public override async Task<long> FileSizeAsync(string filePath, CancellationToken token)
         {
+            filePath = NormalizePath(filePath);
             await EnsureConnectedAsync(token);
             return await _client!.GetFileSize(filePath, -1, token);
         }
 
         public override async Task<Stream> ReadAsync(string filePath, CancellationToken token)
         {
+            filePath = NormalizePath(filePath);
             await EnsureConnectedAsync(token);
             return await _client!.OpenRead(filePath);
         }
 
         public override async Task WriteAsync(string filePath, Stream stream, long offset, TransferOptions options, CancellationToken token)
         {
+            filePath = NormalizePath(filePath);
             await EnsureConnectedAsync(token);
 
             if (offset > 0)
@@ -232,6 +238,7 @@ namespace Juice.Storage.Local
 
         public override async Task PreserveModifiedTimeAsync(string filePath, DateTimeOffset? modifiedTime, CancellationToken token)
         {
+            filePath = NormalizePath(filePath);
             if (modifiedTime.HasValue)
             {
                 await EnsureConnectedAsync(token);
@@ -243,10 +250,11 @@ namespace Juice.Storage.Local
         {
             await Task.Yield();
 
+            filePath = NormalizePath(filePath);
             var fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
             var extension = Path.GetExtension(filePath);
 
-            var directory = Path.GetDirectoryName(filePath);
+            var directory = GetDirectoryPart(filePath);
 
             var files = string.IsNullOrEmpty(directory) ?
                 await _client!.GetNameListing(token)

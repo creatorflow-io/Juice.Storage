@@ -12,19 +12,23 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddControllers();
 
-builder.Services.AddStorage();
-builder.Services.AddInMemoryUploadManager(builder.Configuration.GetSection("Juice:Storage"));
-builder.Services.AddInMemoryStorageMaintainServices(builder.Configuration.GetSection("Juice:Storage"),
-    new string[] { "/storage", "/storage1" },
-    options =>
-    {
-        options.CleanupAfter = TimeSpan.FromMinutes(5);
-        options.Interval = TimeSpan.FromMinutes(1);
-    });
-builder.Services.AddLocalStorageProviders();
+var storageConfiguration = builder.Configuration.GetSection("Juice:Storage");
+builder.Services.AddStorage(storage => storage
+    .AddLocalStorageProviders()
+    // each one is only registered on its own platform
+    .AddWindowsNetworkConnection()
+    .AddLinuxNetworkConnection(options => storageConfiguration.GetSection("Linux").Bind(options))
+    .AddInMemoryUploadManager(storageConfiguration)
+    .AddInMemoryStorageMaintainServices(storageConfiguration,
+        new string[] { "/storage", "/storage1" },
+        options =>
+        {
+            options.CleanupAfter = TimeSpan.FromMinutes(5);
+            options.Interval = TimeSpan.FromMinutes(1);
+        })
+    .AddDefaultDownloadManager<UploadFileInfo>(storageConfiguration));
 
 builder.Services.AddSingleton<IFileRepository<UploadFileInfo>, InMemoryFileRepository>();
-builder.Services.AddDefaultDownloadManager<UploadFileInfo>(builder.Configuration.GetSection("Juice:Storage"));
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors();

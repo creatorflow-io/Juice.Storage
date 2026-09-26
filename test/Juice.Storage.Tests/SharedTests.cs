@@ -17,7 +17,7 @@ namespace Juice.Storage.Tests
         public static async Task File_should_create_Async(IStorageProvider storage)
         {
             var generator = StringIdGenerator.Instance;
-            var file = @"Test\" + generator.GenerateRandomId(26) + ".txt";
+            var file = "Test/" + generator.GenerateRandomId(26) + ".txt";
 
             var createdFile = await storage.CreateAsync(file, new CreateFileOptions { FileExistsBehavior = FileExistsBehavior.RaiseError }, default);
 
@@ -111,7 +111,7 @@ namespace Juice.Storage.Tests
             {
 
                 var generator = StringIdGenerator.Instance;
-                var fileName = @"Test\" + generator.GenerateRandomId(26) + ".zzz";
+                var fileName = "Test/" + generator.GenerateRandomId(26) + ".zzz";
                 string? contentType = default;
                 string? correlationId = default;
 

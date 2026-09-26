@@ -1,0 +1,39 @@
+name: juice-storage-e2e
+
+services:
+  smb:
+    build:
+      context: .
+      dockerfile: samba.Dockerfile
+
+  ftp:
+    image: delfer/alpine-ftp-server
+    environment:
+      USERS: "ftpuser|ftppass"
+      ADDRESS: ftp
+
+  app:
+    build:
+      context: ../..
+      dockerfile: src/Juice.Storage.App/Dockerfile
+      args:
+        INSTALL_CIFS: "true"
+      secrets:
+        - github_user
+        - github_token
+    env_file: app.env
+    # enough for mount.cifs, no --privileged
+    cap_add:
+      - SYS_ADMIN
+      - DAC_READ_SEARCH
+    ports:
+      - "${E2E_PORT:-18080}:8080"
+    depends_on:
+      - smb
+      - ftp
+
+secrets:
+  github_user:
+    environment: GITHUB_PACKAGE_USERNAME
+  github_token:
+    environment: GITHUB_PACKAGE_TOKEN
